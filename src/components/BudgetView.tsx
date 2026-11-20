@@ -1,13 +1,28 @@
-import React, { useMemo } from 'react';
-import { Button, Empty, InputNumber, Popconfirm, Progress, Select } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  CheckCircle2,
-  Pencil,
-  Plus,
-  Trash2,
-  TrendingDown,
-  AlertTriangle,
-} from 'lucide-react';
+  Button,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  IconButton,
+  InputAdornment,
+  InputLabel,
+  LinearProgress,
+  MenuItem,
+  Select,
+  TextField,
+} from '@mui/material';
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import {
   Bar,
   CartesianGrid,
@@ -26,6 +41,7 @@ import type {
   ExpenseEntry,
 } from '../types/daymark';
 import { formatCurrency, formatTimeFromISO } from '../utils/dateUtils';
+import { ExpenseCategoryIcon } from './MaterialIcons';
 
 interface BudgetViewProps {
   selectedDateKey: string;
@@ -76,6 +92,17 @@ export const BudgetView: React.FC<BudgetViewProps> = ({
   onEditExpense,
   onDeleteExpense,
 }) => {
+  const [isNarrow, setIsNarrow] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 520 : false
+  );
+  const [confirmDeleteExp, setConfirmDeleteExp] = useState<ExpenseEntry | null>(null);
+
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 520);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const dayExpenses = useMemo(
     () =>
       expenses
@@ -121,179 +148,187 @@ export const BudgetView: React.FC<BudgetViewProps> = ({
   const chartData = useMemo(
     () =>
       summaries.map((d) => ({
-        label: `${d.dayShort} ${d.dayNum}`,
+        label: isNarrow ? d.dayShort.slice(0, 2) : `${d.dayShort} ${d.dayNum}`,
         spent: d.totalSpent,
         goalPct: d.avgGoalProgress,
         underBudget: d.underBudget,
         dualWin: d.dualWin,
       })),
-    [summaries]
+    [summaries, isNarrow]
   );
 
   return (
-    <div className="space-y-6">
-      {/* Top Budget Cap Summary & Quick Controls */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-        <div className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-[#111827] dark:text-[#F3F6FA]">
-                Daily Expense Monitor
-              </h1>
-              <p className="text-sm text-[#525B6B] dark:text-[#94A3B8] mt-0.5">
-                Compare daily spending against your cap to protect your Dual-Win streak.
-              </p>
+    <div className="space-y-4 sm:space-y-6">
+      {/* Top Spending Overview & Budget Cap */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 items-stretch">
+        <Card className="lg:col-span-7 p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-2xl bg-[#D3F4E5] dark:bg-[#0A3B2B] text-[#0E7A56] dark:text-[#6DDBAC] inline-flex items-center justify-center shrink-0">
+                <AccountBalanceWalletRoundedIcon />
+              </span>
+              <div>
+                <h1 className="font-display text-lg sm:text-xl font-bold text-[#191C20] dark:text-[#E3E5EC]">
+                  Daily Budget
+                </h1>
+                <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+                  Stay under cap to keep your Dual-Win streak.
+                </p>
+              </div>
             </div>
             <Button
-              type="primary"
+              variant="contained"
+              size="small"
               onClick={onOpenNewExpense}
-              icon={<Plus className="w-4 h-4" />}
-              className="min-h-[44px] whitespace-nowrap shrink-0"
+              startIcon={<AddRoundedIcon />}
+              sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
             >
               Log Expense
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-1">
             <div>
-              <div className="text-xs text-[#525B6B] dark:text-[#94A3B8]">Spent on date</div>
-              <div className="font-mono text-2xl font-bold tabular-nums text-[#111827] dark:text-[#F3F6FA] mt-0.5">
+              <div className="text-[11px] sm:text-xs text-[#515864] dark:text-[#9EA6B6]">Spent</div>
+              <div className="font-mono text-base sm:text-2xl font-bold tabular-nums mt-0.5 truncate">
                 {formatCurrency(todaySpent, currencySymbol)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                {isOver ? 'Over cap' : 'Remaining cap'}
+              <div className="text-[11px] sm:text-xs text-[#515864] dark:text-[#9EA6B6]">
+                {isOver ? 'Over cap' : 'Remaining'}
               </div>
               <div
-                className={`font-mono text-2xl font-bold tabular-nums mt-0.5 ${
+                className={`font-mono text-base sm:text-2xl font-bold tabular-nums mt-0.5 truncate ${
                   isOver
-                    ? 'text-[#DC2626] dark:text-[#F87171]'
+                    ? 'text-[#BA1A1A] dark:text-[#FFB4AB]'
                     : isWarn
-                      ? 'text-[#D97706] dark:text-[#FBBF24]'
-                      : 'text-[#10B981]'
+                      ? 'text-[#A15C00] dark:text-[#FFB951]'
+                      : 'text-[#0E7A56] dark:text-[#6DDBAC]'
                 }`}
               >
                 {formatCurrency(Math.abs(remaining), currencySymbol)}
               </div>
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <div className="text-xs text-[#525B6B] dark:text-[#94A3B8]">7-day total</div>
-              <div className="font-mono text-2xl font-bold tabular-nums text-[#111827] dark:text-[#F3F6FA] mt-0.5">
+            <div>
+              <div className="text-[11px] sm:text-xs text-[#515864] dark:text-[#9EA6B6]">7-day</div>
+              <div className="font-mono text-base sm:text-2xl font-bold tabular-nums mt-0.5 truncate">
                 {formatCurrency(weeklySpent, currencySymbol)}
               </div>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Progress
-              percent={Math.min(100, budgetRatio)}
-              showInfo={false}
-              strokeWidth={10}
-              strokeColor={isOver ? '#DC2626' : isWarn ? '#D97706' : '#10B981'}
+            <LinearProgress
+              variant="determinate"
+              value={Math.min(100, budgetRatio)}
+              color={isOver ? 'error' : isWarn ? 'warning' : 'success'}
+              sx={{ height: 9 }}
             />
-            <div className="flex items-center justify-between text-xs text-[#525B6B] dark:text-[#94A3B8]">
-              <span className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between text-xs text-[#515864] dark:text-[#9EA6B6]">
+              <span className="inline-flex items-center gap-1.5">
                 {isOver ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-[#DC2626]" />
+                  <WarningAmberRoundedIcon sx={{ fontSize: 16 }} className="text-[#BA1A1A] dark:text-[#FFB4AB]" />
                 ) : (
-                  <TrendingDown className="w-3.5 h-3.5 text-[#10B981]" />
+                  <TrendingDownRoundedIcon sx={{ fontSize: 16 }} className="text-[#0E7A56] dark:text-[#6DDBAC]" />
                 )}
                 {isOver
-                  ? 'Daily budget cap exceeded'
+                  ? 'Daily cap exceeded'
                   : isWarn
-                    ? `Past ${budgetWarningPercent}% warning threshold`
-                    : 'Within daily spending target'}
+                    ? `Past ${budgetWarningPercent}% warning`
+                    : 'Within daily spending cap'}
               </span>
-              <span className="font-mono tabular-nums">{budgetRatio}% of cap</span>
+              <span className="font-mono tabular-nums">{budgetRatio}%</span>
             </div>
           </div>
-        </div>
+        </Card>
 
-        {/* Cap Configuration & Dual-Win Streak Card */}
-        <div className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 flex flex-col justify-between gap-4">
+        {/* Cap & Currency Settings Card */}
+        <Card className="lg:col-span-5 p-4 sm:p-6 flex flex-col justify-between gap-4">
           <div className="space-y-3">
-            <div className="text-sm font-semibold text-[#111827] dark:text-[#F3F6FA]">
-              Daily Budget Cap Settings
+            <div className="text-sm font-semibold text-[#191C20] dark:text-[#E3E5EC]">
+              Daily Cap & Currency
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-[#525B6B] dark:text-[#94A3B8] mb-1">
-                  Daily cap
-                </label>
-                <InputNumber
-                  size="large"
-                  min={1}
-                  max={1000000}
-                  value={dailyBudgetCap}
-                  onChange={(val) => onUpdateBudgetCap(Math.max(1, Number(val) || 1))}
-                  prefix={currencySymbol}
-                  className="w-full font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-[#525B6B] dark:text-[#94A3B8] mb-1">
-                  Currency
-                </label>
+              <TextField
+                size="small"
+                type="number"
+                label="Daily cap"
+                value={dailyBudgetCap}
+                onChange={(e) => onUpdateBudgetCap(Math.max(1, Number(e.target.value) || 1))}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">{currencySymbol}</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { min: 1 },
+                }}
+              />
+              <FormControl size="small" fullWidth>
+                <InputLabel id="budget-currency-label">Currency</InputLabel>
                 <Select
-                  size="large"
+                  labelId="budget-currency-label"
+                  label="Currency"
                   value={currencySymbol}
-                  onChange={onUpdateCurrency}
-                  className="w-full"
-                  options={CURRENCIES}
-                />
-              </div>
+                  onChange={(e) => onUpdateCurrency(String(e.target.value))}
+                >
+                  {CURRENCIES.map((c) => (
+                    <MenuItem key={c.value} value={c.value}>
+                      {c.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#222C3E] flex items-center justify-between">
+          <div className="pt-3 border-t border-[#DDE3EE] dark:border-[#2B313E] flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                7-Day Dual-Win Score
-              </div>
-              <div className="font-mono text-lg font-bold tabular-nums text-[#10B981] mt-0.5">
-                {dualWinDaysCount} / {summaries.length} days · {dualWinStreak}d streak
+              <div className="text-xs text-[#515864] dark:text-[#9EA6B6]">7-Day Dual-Win Score</div>
+              <div className="font-mono text-base font-bold tabular-nums text-[#0E7A56] dark:text-[#6DDBAC] mt-0.5">
+                {dualWinDaysCount}/{summaries.length} days · {dualWinStreak}d streak
               </div>
             </div>
-            <CheckCircle2 className="w-7 h-7 text-[#10B981] shrink-0" />
+            <CheckCircleRoundedIcon className="text-[#0E7A56] dark:text-[#6DDBAC]" />
           </div>
-        </div>
+        </Card>
       </section>
 
-      {/* 7-Day Daily Budget Cap vs Goal Streak Composed Chart */}
-      <section className="rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 space-y-4">
+      {/* 7-Day Spend vs Goal Progress Chart */}
+      <Card className="p-4 sm:p-6 space-y-3.5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <h2 className="font-display text-lg font-bold text-[#111827] dark:text-[#F3F6FA]">
-              Daily Spend vs. Goal Completion (Last 7 Days)
+            <h2 className="font-display text-base sm:text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+              Spend vs. Goal Progress
             </h2>
-            <p className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
-              Bars show daily expenses vs. dashed cap line · Blue line tracks daily goal %
+            <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+              Bars = spend vs. dashed cap · Line = daily goal %
             </p>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-[#525B6B] dark:text-[#94A3B8]">
-            <span>Emerald = Under cap</span>
-            <span>Coral = Over cap</span>
           </div>
         </div>
 
-        <div className="h-[250px] w-full">
+        <div className="h-[210px] sm:h-[240px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 10, right: isNarrow ? 6 : 8, left: isNarrow ? -18 : -10, bottom: 0 }}
+            >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke={isDark ? '#222C3E' : '#E5E7EB'}
+                stroke={isDark ? '#2B313E' : '#DDE3EE'}
                 vertical={false}
               />
               <XAxis
                 dataKey="label"
-                tick={{ fill: isDark ? '#94A3B8' : '#525B6B', fontSize: 11 }}
+                tick={{ fill: isDark ? '#9EA6B6' : '#515864', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 yAxisId="spend"
-                tick={{ fill: isDark ? '#94A3B8' : '#525B6B', fontSize: 11 }}
+                width={isNarrow ? 44 : 52}
+                tick={{ fill: isDark ? '#9EA6B6' : '#515864', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `${currencySymbol}${v}`}
@@ -302,17 +337,18 @@ export const BudgetView: React.FC<BudgetViewProps> = ({
                 yAxisId="goal"
                 orientation="right"
                 domain={[0, 100]}
-                tick={{ fill: isDark ? '#94A3B8' : '#525B6B', fontSize: 11 }}
+                hide={isNarrow}
+                tick={{ fill: isDark ? '#9EA6B6' : '#515864', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `${v}%`}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: isDark ? '#131A26' : '#FFFFFF',
-                  borderColor: isDark ? '#222C3E' : '#E5E7EB',
-                  borderRadius: 12,
-                  color: isDark ? '#F3F6FA' : '#111827',
+                  backgroundColor: isDark ? '#1A1D24' : '#FFFFFF',
+                  borderColor: isDark ? '#2B313E' : '#DDE3EE',
+                  borderRadius: 14,
+                  color: isDark ? '#E3E5EC' : '#191C20',
                   fontSize: 12,
                 }}
                 formatter={(value, name) => {
@@ -326,15 +362,23 @@ export const BudgetView: React.FC<BudgetViewProps> = ({
               <ReferenceLine
                 yAxisId="spend"
                 y={dailyBudgetCap}
-                stroke="#D97706"
+                stroke={isDark ? '#FFB951' : '#A15C00'}
                 strokeDasharray="5 5"
                 strokeWidth={1.5}
               />
-              <Bar yAxisId="spend" dataKey="spent" radius={[8, 8, 0, 0]} maxBarSize={34}>
+              <Bar yAxisId="spend" dataKey="spent" radius={[8, 8, 0, 0]} maxBarSize={28}>
                 {chartData.map((entry, idx) => (
                   <Cell
                     key={`cell-${idx}`}
-                    fill={entry.underBudget ? '#10B981' : '#DC2626'}
+                    fill={
+                      entry.underBudget
+                        ? isDark
+                          ? '#6DDBAC'
+                          : '#0E7A56'
+                        : isDark
+                          ? '#FFB4AB'
+                          : '#BA1A1A'
+                    }
                     fillOpacity={0.85}
                   />
                 ))}
@@ -343,148 +387,147 @@ export const BudgetView: React.FC<BudgetViewProps> = ({
                 yAxisId="goal"
                 type="monotone"
                 dataKey="goalPct"
-                stroke={isDark ? '#4096FF' : '#1677FF'}
+                stroke={isDark ? '#8ACEFF' : '#00639B'}
                 strokeWidth={2.5}
-                dot={{ r: 4, fill: isDark ? '#4096FF' : '#1677FF' }}
+                dot={{ r: 3.5, fill: isDark ? '#8ACEFF' : '#00639B' }}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+      </Card>
 
-        {/* 7-Day Dual-Win Comparison Strip */}
-        <div className="grid grid-cols-7 gap-2 pt-2 border-t border-[#E5E7EB] dark:border-[#222C3E]">
-          {summaries.map((d) => (
-            <div key={d.dateKey} className="text-center space-y-0.5">
-              <div className="text-[11px] text-[#525B6B] dark:text-[#94A3B8]">
-                {d.dayShort}
-              </div>
-              <div
-                className={`text-xs font-mono font-semibold tabular-nums ${
-                  d.dualWin
-                    ? 'text-[#10B981]'
-                    : !d.underBudget
-                      ? 'text-[#DC2626] dark:text-[#F87171]'
-                      : 'text-[#525B6B] dark:text-[#94A3B8]'
-                }`}
-              >
-                {d.dualWin ? 'Win' : !d.underBudget ? 'Over' : `${d.avgGoalProgress}%`}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Bottom Split: Category Breakdown + Chronological Expense List */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 space-y-4">
-          <h2 className="font-display text-lg font-bold text-[#111827] dark:text-[#F3F6FA]">
-            Category Breakdown
-          </h2>
-
-          {categoryBreakdown.length === 0 ? (
-            <p className="text-sm text-[#525B6B] dark:text-[#94A3B8] py-4">
-              Log an expense to inspect category distribution.
-            </p>
-          ) : (
-            <div className="space-y-3.5">
-              {categoryBreakdown.map((item) => {
-                const share =
-                  todaySpent > 0 ? Math.round((item.amount / todaySpent) * 100) : 0;
-                return (
-                  <div key={item.category} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-[#111827] dark:text-[#F3F6FA]">
-                        {item.category}
-                      </span>
-                      <span className="font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8]">
-                        {formatCurrency(item.amount, currencySymbol)} · {share}%
-                      </span>
-                    </div>
-                    <Progress percent={share} showInfo={false} strokeColor="#1677FF" size="small" />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 space-y-4">
+      {/* Bottom Split: Expenses List + Category Breakdown */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+        <Card className="lg:col-span-7 p-4 sm:p-6 space-y-3.5">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold text-[#111827] dark:text-[#F3F6FA]">
-              Expenses Logged
+            <h2 className="font-display text-base sm:text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+              Expenses
             </h2>
-            <span className="text-xs font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8]">
+            <span className="text-xs font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6]">
               {dayExpenses.length} {dayExpenses.length === 1 ? 'entry' : 'entries'}
             </span>
           </div>
 
           {dayExpenses.length === 0 ? (
-            <div className="py-8">
-              <Empty
-                description={
-                  <span className="text-sm text-[#525B6B] dark:text-[#94A3B8]">
-                    No expenses recorded for this date.
-                  </span>
-                }
-              >
-                <Button type="primary" onClick={onOpenNewExpense} className="min-h-[44px]">
-                  Log first expense
-                </Button>
-              </Empty>
+            <div className="py-8 text-center flex flex-col items-center gap-2.5">
+              <span className="w-12 h-12 rounded-2xl bg-[#F0F4FA] dark:bg-[#1E222B] text-[#515864] dark:text-[#9EA6B6] inline-flex items-center justify-center">
+                <ReceiptLongRoundedIcon />
+              </span>
+              <p className="text-sm text-[#515864] dark:text-[#9EA6B6]">
+                No expenses logged for this date yet.
+              </p>
+              <Button variant="contained" size="small" onClick={onOpenNewExpense} startIcon={<AddRoundedIcon />}>
+                Log Expense
+              </Button>
             </div>
           ) : (
-            <div className="divide-y divide-[#E5E7EB] dark:divide-[#222C3E]">
+            <div className="divide-y divide-[#DDE3EE] dark:divide-[#2B313E]">
               {dayExpenses.map((exp) => (
                 <div
                   key={exp.id}
-                  className="py-3.5 first:pt-1 last:pb-0 flex items-center justify-between gap-3"
+                  className="py-3 first:pt-1 last:pb-0 flex items-center justify-between gap-3"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-[#111827] dark:text-[#F3F6FA] truncate">
-                      {exp.note}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-[#525B6B] dark:text-[#94A3B8] mt-0.5">
-                      <span>{exp.category}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">
-                        {formatTimeFromISO(exp.createdAt)}
-                      </span>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <ExpenseCategoryIcon category={exp.category} />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-[#191C20] dark:text-[#E3E5EC] truncate">
+                        {exp.note}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-[#515864] dark:text-[#9EA6B6] mt-0.5">
+                        <span>{exp.category}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono tabular-nums">
+                          {formatTimeFromISO(exp.createdAt)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="font-mono text-sm font-bold tabular-nums text-[#111827] dark:text-[#F3F6FA] mr-1">
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <span className="font-mono text-sm font-bold tabular-nums mr-1">
                       {formatCurrency(exp.amount, currencySymbol)}
                     </span>
-                    <button
-                      type="button"
+                    <IconButton
+                      size="small"
                       onClick={() => onEditExpense(exp)}
                       aria-label={`Edit ${exp.note}`}
-                      className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#525B6B] dark:text-[#94A3B8] hover:text-[#1677FF] transition-colors"
                     >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <Popconfirm
-                      title="Delete this expense?"
-                      okText="Delete"
-                      okType="danger"
-                      onConfirm={() => onDeleteExpense(exp.id)}
+                      <EditRoundedIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => setConfirmDeleteExp(exp)}
+                      aria-label={`Delete ${exp.note}`}
                     >
-                      <button
-                        type="button"
-                        aria-label={`Delete ${exp.note}`}
-                        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#525B6B] dark:text-[#94A3B8] hover:text-[#DC2626] transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </Popconfirm>
+                      <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </Card>
+
+        <Card className="lg:col-span-5 p-4 sm:p-6 space-y-3.5">
+          <h2 className="font-display text-base sm:text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+            By Category
+          </h2>
+          {categoryBreakdown.length === 0 ? (
+            <p className="text-sm text-[#515864] dark:text-[#9EA6B6] py-3">
+              Category totals appear automatically as you log expenses.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {categoryBreakdown.map((item) => {
+                const share =
+                  todaySpent > 0 ? Math.round((item.amount / todaySpent) * 100) : 0;
+                return (
+                  <div key={item.category} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-[#191C20] dark:text-[#E3E5EC]">
+                        {item.category}
+                      </span>
+                      <span className="font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6]">
+                        {formatCurrency(item.amount, currencySymbol)} · {share}%
+                      </span>
+                    </div>
+                    <LinearProgress variant="determinate" value={share} sx={{ height: 6 }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
       </section>
+
+      <Dialog
+        open={Boolean(confirmDeleteExp)}
+        onClose={() => setConfirmDeleteExp(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle className="font-display font-bold">Delete expense?</DialogTitle>
+        <DialogContent>
+          <p className="text-sm text-[#515864] dark:text-[#9EA6B6]">
+            Remove “{confirmDeleteExp?.note}” from your daily budget?
+          </p>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" onClick={() => setConfirmDeleteExp(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (confirmDeleteExp) onDeleteExpense(confirmDeleteExp.id);
+              setConfirmDeleteExp(null);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

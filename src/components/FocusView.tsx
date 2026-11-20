@@ -1,22 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
-  Empty,
-  Input,
-  InputNumber,
-  Popconfirm,
-  Progress,
-  Segmented,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  IconButton,
+  InputLabel,
+  MenuItem,
   Select,
-} from 'antd';
-import {
-  CheckCircle2,
-  Clock,
-  Pause,
-  Play,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react';
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
+import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
+import SelfImprovementRoundedIcon from '@mui/icons-material/SelfImprovementRounded';
+import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
 import type { DailyGoal, WorkSession } from '../types/daymark';
 import {
   formatDurationMinutes,
@@ -71,6 +77,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
   const [isRunning, setIsRunning] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(25 * 60);
   const [sessionNote, setSessionNote] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const endTimestampRef = useRef<number | null>(null);
   const startedAtRef = useRef<string | null>(null);
@@ -187,202 +194,230 @@ export const FocusView: React.FC<FocusViewProps> = ({
   const minsDisplay = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
   const secsDisplay = String(remainingSeconds % 60).padStart(2, '0');
   const totalMinutesToday = daySessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const canLogElapsed = !isBreakPhase && remainingSeconds < totalPhaseSeconds;
+
+  const ringSize = 200;
+  const ringStroke = 10;
+  const ringRadius = (ringSize - ringStroke) / 2;
+  const ringCirc = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCirc - (progressPct / 100) * ringCirc;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      {/* Focus Timer Card */}
-      <section className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-xl font-bold text-[#111827] dark:text-[#F3F6FA]">
-              {isBreakPhase ? 'Recovery Break' : 'Focus & Pomodoro Timer'}
-            </h1>
-            <p className="text-xs text-[#525B6B] dark:text-[#94A3B8] mt-0.5">
-              Completed sessions sync locally and advance your linked target goal.
-            </p>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+      {/* Main Focus Timer Card */}
+      <Card className="lg:col-span-7 p-5 sm:p-6 space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span
+              className={`w-10 h-10 rounded-2xl inline-flex items-center justify-center shrink-0 ${
+                isBreakPhase
+                  ? 'bg-[#D3F4E5] dark:bg-[#0A3B2B] text-[#0E7A56] dark:text-[#6DDBAC]'
+                  : 'bg-[#CEE5FF] dark:bg-[#004B73] text-[#00639B] dark:text-[#8ACEFF]'
+              }`}
+            >
+              {isBreakPhase ? <SelfImprovementRoundedIcon /> : <TimerRoundedIcon />}
+            </span>
+            <div>
+              <h1 className="font-display text-lg sm:text-xl font-bold text-[#191C20] dark:text-[#E3E5EC]">
+                {isBreakPhase ? 'Recovery Break' : 'Focus Timer'}
+              </h1>
+              <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+                {preset === 'pomodoro' && '25m focus · 5m break'}
+                {preset === 'deep' && '50m deep focus · 10m break'}
+                {preset === 'custom' && `${customMinutes}m custom focus`}
+              </p>
+            </div>
           </div>
+
           {isBreakPhase && (
-            <Button size="small" onClick={() => setIsBreakPhase(false)}>
+            <Button size="small" variant="outlined" onClick={() => setIsBreakPhase(false)}>
               Skip Break
             </Button>
           )}
         </div>
 
-        <div className="space-y-3">
-          <Segmented
-            block
-            size="large"
-            disabled={isRunning}
-            value={preset}
-            onChange={(val) => {
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          disabled={isRunning}
+          value={preset}
+          onChange={(_, val) => {
+            if (val) {
               setIsBreakPhase(false);
               setPreset(val as TimerPreset);
-            }}
-            options={[
-              { label: 'Pomodoro 25m', value: 'pomodoro' },
-              { label: 'Deep Work 50m', value: 'deep' },
-              { label: 'Custom', value: 'custom' },
-            ]}
+            }
+          }}
+        >
+          <ToggleButton value="pomodoro">25m Focus</ToggleButton>
+          <ToggleButton value="deep">50m Deep</ToggleButton>
+          <ToggleButton value="custom">Custom</ToggleButton>
+        </ToggleButtonGroup>
+
+        {preset === 'custom' && !isBreakPhase && (
+          <TextField
+            fullWidth
+            size="small"
+            type="number"
+            label="Custom minutes"
+            disabled={isRunning}
+            value={customMinutes}
+            onChange={(e) => setCustomMinutes(Math.max(1, Math.min(180, Number(e.target.value) || 15)))}
+            slotProps={{ htmlInput: { min: 1, max: 180 } }}
           />
+        )}
 
-          {preset === 'custom' && !isBreakPhase && (
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <span className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                Custom work session duration
-              </span>
-              <InputNumber
-                min={1}
-                max={180}
-                disabled={isRunning}
-                value={customMinutes}
-                onChange={(val) => setCustomMinutes(Number(val) || 15)}
-                addonAfter="min"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Linked Daily Goal Selector */}
-        <div>
-          <label className="block text-xs font-medium text-[#525B6B] dark:text-[#94A3B8] mb-1.5">
-            Linked daily goal
-          </label>
+        <FormControl fullWidth size="small">
+          <InputLabel id="focus-goal-select">Linked daily target</InputLabel>
           <Select
-            size="large"
-            className="w-full"
-            value={selectedGoal?.id}
-            placeholder="Select a daily target goal (or run general focus)"
-            onChange={(val) => onSelectGoalId(val)}
-            allowClear
-            options={dayGoals.map((g) => ({
-              label: `${g.title} (${g.category})`,
-              value: g.id,
-            }))}
-          />
-        </div>
+            labelId="focus-goal-select"
+            label="Linked daily target"
+            value={selectedGoal?.id || ''}
+            onChange={(e) => onSelectGoalId(e.target.value ? String(e.target.value) : null)}
+          >
+            <MenuItem value="">General focus session</MenuItem>
+            {dayGoals.map((g) => (
+              <MenuItem key={g.id} value={g.id}>
+                {g.title} · {g.category}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-        {/* Circular Live Countdown Ring */}
+        {/* Animated Material Countdown Ring */}
         <div className="flex flex-col items-center py-2">
-          <Progress
-            type="circle"
-            percent={progressPct}
-            size={210}
-            strokeWidth={8}
-            strokeColor={isBreakPhase ? '#10B981' : '#1677FF'}
-            format={() => (
-              <div className="flex flex-col items-center">
-                <span className="font-mono text-4xl font-bold tabular-nums text-[#111827] dark:text-[#F3F6FA]">
-                  {minsDisplay}:{secsDisplay}
-                </span>
-                <span className="text-xs text-[#525B6B] dark:text-[#94A3B8] mt-1">
-                  {isBreakPhase
-                    ? 'Break time'
-                    : isRunning
-                      ? 'In progress'
-                      : 'Ready to start'}
-                </span>
-              </div>
-            )}
-          />
+          <div className="relative w-[200px] h-[200px] flex items-center justify-center">
+            <svg width={ringSize} height={ringSize} className="-rotate-90" aria-hidden="true">
+              <circle
+                cx={ringSize / 2}
+                cy={ringSize / 2}
+                r={ringRadius}
+                fill="none"
+                className="stroke-[#E7EDF6] dark:stroke-[#272C37]"
+                strokeWidth={ringStroke}
+              />
+              <circle
+                cx={ringSize / 2}
+                cy={ringSize / 2}
+                r={ringRadius}
+                fill="none"
+                className={
+                  isBreakPhase
+                    ? 'stroke-[#0E7A56] dark:stroke-[#6DDBAC]'
+                    : 'stroke-[#00639B] dark:stroke-[#8ACEFF]'
+                }
+                strokeWidth={ringStroke}
+                strokeDasharray={ringCirc}
+                strokeDashoffset={ringOffset}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dashoffset 300ms linear' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-mono text-4xl font-bold tabular-nums text-[#191C20] dark:text-[#E3E5EC]">
+                {minsDisplay}:{secsDisplay}
+              </span>
+              <span className="text-xs text-[#515864] dark:text-[#9EA6B6] mt-1">
+                {isBreakPhase ? 'Take a breather' : isRunning ? 'Focusing' : 'Ready'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Optional Work Note */}
-        <Input
-          size="large"
-          placeholder="Optional note on what you’re completing in this block..."
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="Optional note on work completed..."
           value={sessionNote}
           onChange={(e) => setSessionNote(e.target.value)}
         />
 
-        {/* Primary Timer Controls */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Primary Transport Actions */}
+        <div className="space-y-2.5">
           <Button
-            type="primary"
+            variant="contained"
             size="large"
+            fullWidth
+            color={isBreakPhase ? 'success' : 'primary'}
             onClick={handleToggleRun}
-            icon={isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-            className="min-h-[48px] flex-[2] min-w-[140px]"
+            startIcon={isRunning ? <PauseRoundedIcon /> : <PlayArrowRoundedIcon />}
           >
             {isRunning ? 'Pause Timer' : 'Start Focus'}
           </Button>
-          <Button
-            size="large"
-            onClick={handleReset}
-            icon={<RotateCcw className="w-4 h-4" />}
-            className="min-h-[48px] flex-1"
-          >
-            Reset
-          </Button>
-          {!isBreakPhase && remainingSeconds < totalPhaseSeconds && (
-            <Button
-              size="large"
-              onClick={handleCompleteEarly}
-              icon={<CheckCircle2 className="w-4 h-4" />}
-              className="min-h-[48px] flex-1"
-            >
-              Log Elapsed
+          <div className={`grid gap-2.5 ${canLogElapsed ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <Button variant="outlined" onClick={handleReset} startIcon={<ReplayRoundedIcon />}>
+              Reset
             </Button>
-          )}
+            {canLogElapsed && (
+              <Button
+                variant="outlined"
+                color="success"
+                onClick={handleCompleteEarly}
+                startIcon={<CheckCircleRoundedIcon />}
+              >
+                Log Elapsed
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Quick Offline Work Logger */}
-        <div className="pt-4 border-t border-[#E5E7EB] dark:border-[#222C3E] flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
-            Worked offline without timer? Quick log:
-          </span>
-          <div className="flex items-center gap-2">
+        {/* Quick Offline Minutes Logger */}
+        <div className="pt-4 border-t border-[#DDE3EE] dark:border-[#2B313E] space-y-2">
+          <div className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+            Worked offline? Quick-log minutes:
+          </div>
+          <div className="grid grid-cols-3 gap-2">
             {[15, 30, 45].map((mins) => (
               <Button
                 key={mins}
+                variant="outlined"
                 size="small"
                 onClick={() => handleQuickLogMinutes(mins)}
-                className="min-h-[36px] font-mono tabular-nums"
+                sx={{ fontFamily: '"JetBrains Mono", monospace', minHeight: 40 }}
               >
                 +{mins}m
               </Button>
             ))}
           </div>
         </div>
-      </section>
+      </Card>
 
-      {/* Work Completed Today Log */}
-      <section className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 space-y-4">
+      {/* Work Completed History Card */}
+      <Card className="lg:col-span-5 p-5 sm:p-6 space-y-4">
         <div className="flex items-baseline justify-between gap-2">
           <div>
-            <h2 className="font-display text-lg font-bold text-[#111827] dark:text-[#F3F6FA]">
+            <h2 className="font-display text-base sm:text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
               Work Completed
             </h2>
-            <p className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
+            <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
               {daySessions.length} {daySessions.length === 1 ? 'session' : 'sessions'} logged
             </p>
           </div>
-          <span className="font-mono text-xl font-bold tabular-nums text-[#1677FF]">
+          <span className="font-mono text-lg font-bold tabular-nums text-[#00639B] dark:text-[#8ACEFF]">
             {formatDurationMinutes(totalMinutesToday)}
           </span>
         </div>
 
         {daySessions.length === 0 ? (
-          <div className="py-8">
-            <Empty
-              description={
-                <span className="text-sm text-[#525B6B] dark:text-[#94A3B8]">
-                  No work sessions recorded yet for this date.
-                </span>
-              }
-            />
+          <div className="py-8 text-center space-y-2">
+            <span className="w-12 h-12 rounded-2xl bg-[#F0F4FA] dark:bg-[#1E222B] text-[#515864] dark:text-[#9EA6B6] inline-flex items-center justify-center">
+              <ScheduleRoundedIcon />
+            </span>
+            <p className="text-sm text-[#515864] dark:text-[#9EA6B6]">
+              No work sessions recorded for this date yet.
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-[#E5E7EB] dark:divide-[#222C3E]">
+          <div className="divide-y divide-[#DDE3EE] dark:divide-[#2B313E]">
             {daySessions.map((session) => (
               <div
                 key={session.id}
-                className="py-3.5 first:pt-1 last:pb-0 flex items-start justify-between gap-3"
+                className="py-3 first:pt-1 last:pb-0 flex items-start justify-between gap-3"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-[#111827] dark:text-[#F3F6FA] truncate">
+                  <div className="text-sm font-semibold text-[#191C20] dark:text-[#E3E5EC] leading-snug">
                     {session.goalTitle}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-2 text-xs text-[#525B6B] dark:text-[#94A3B8] mt-0.5">
+                  <div className="flex items-center gap-1.5 text-xs text-[#515864] dark:text-[#9EA6B6] mt-0.5">
                     <span className="capitalize">{session.mode}</span>
                     <span aria-hidden="true">·</span>
                     <span className="font-mono tabular-nums">
@@ -390,37 +425,58 @@ export const FocusView: React.FC<FocusViewProps> = ({
                     </span>
                   </div>
                   {session.note && (
-                    <p className="text-xs text-[#525B6B] dark:text-[#94A3B8] mt-1">
+                    <p className="text-xs text-[#515864] dark:text-[#9EA6B6] mt-1">
                       {session.note}
                     </p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="font-mono text-sm font-semibold tabular-nums text-[#111827] dark:text-[#F3F6FA] flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-[#1677FF]" />
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <span className="font-mono text-sm font-bold tabular-nums text-[#00639B] dark:text-[#8ACEFF] mr-1">
                     {session.durationMinutes}m
                   </span>
-                  <Popconfirm
-                    title="Remove this work session?"
-                    okText="Remove"
-                    okType="danger"
-                    onConfirm={() => onDeleteSession(session.id)}
+                  <IconButton
+                    size="small"
+                    aria-label="Remove session"
+                    onClick={() => setConfirmDeleteId(session.id)}
                   >
-                    <button
-                      type="button"
-                      aria-label="Remove session"
-                      className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#525B6B] dark:text-[#94A3B8] hover:text-[#DC2626] transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </Popconfirm>
+                    <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </Card>
+
+      <Dialog
+        open={Boolean(confirmDeleteId)}
+        onClose={() => setConfirmDeleteId(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle className="font-display font-bold">Remove work session?</DialogTitle>
+        <DialogContent>
+          <p className="text-sm text-[#515864] dark:text-[#9EA6B6]">
+            This will also subtract the minutes from the linked goal.
+          </p>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" onClick={() => setConfirmDeleteId(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (confirmDeleteId) onDeleteSession(confirmDeleteId);
+              setConfirmDeleteId(null);
+            }}
+          >
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

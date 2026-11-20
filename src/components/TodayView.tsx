@@ -1,35 +1,47 @@
 import React, { useMemo, useState } from 'react';
 import {
   Button,
+  ButtonBase,
+  Card,
   Checkbox,
-  Empty,
-  InputNumber,
-  Popconfirm,
-  Progress,
-  Segmented,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  LinearProgress,
   Slider,
-} from 'antd';
-import {
-  CheckCircle2,
-  Clock,
-  Flame,
-  Minus,
-  Pencil,
-  Play,
-  Plus,
-  Trash2,
-  Wallet,
-} from 'lucide-react';
-import type { DailyGoal, DaySummary, UserProfile } from '../types/daymark';
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
+import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
+import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
+import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
+import TrackChangesRoundedIcon from '@mui/icons-material/TrackChangesRounded';
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import { motion } from 'motion/react';
+import type { DailyGoal, DaySummary, UserProfile, UserSettings } from '../types/daymark';
 import {
   calculateGoalProgress,
   formatCurrency,
   formatDurationMinutes,
 } from '../utils/dateUtils';
+import { computeProfileCompletion } from '../utils/profileUtils';
 import { ProfileAvatar } from './ProfileAvatar';
+import { GoalCategoryIcon } from './MaterialIcons';
 
 interface TodayViewProps {
   profile: UserProfile;
+  settings: UserSettings;
   selectedDateKey: string;
   todayDateKey: string;
   summaries: DaySummary[];
@@ -40,6 +52,7 @@ interface TodayViewProps {
   goalStreak: number;
   dualWinStreak: number;
   onOpenProfile: () => void;
+  onDismissProfileChecklist: () => void;
   onSelectDate: (dateKey: string) => void;
   onOpenNewGoal: () => void;
   onEditGoal: (goal: DailyGoal) => void;
@@ -49,8 +62,56 @@ interface TodayViewProps {
   onOpenQuickExpense: () => void;
 }
 
+const ProgressRing: React.FC<{ percent: number; isDone: boolean }> = ({ percent, isDone }) => {
+  const size = 96;
+  const stroke = 9;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (Math.min(100, Math.max(0, percent)) / 100) * circumference;
+
+  return (
+    <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          className="stroke-[#DDE5F2] dark:stroke-[#272E3B]"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          className={
+            isDone
+              ? 'stroke-[#0E7A56] dark:stroke-[#6DDBAC]'
+              : 'stroke-[#00639B] dark:stroke-[#8ACEFF]'
+          }
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 320ms cubic-bezier(0.2, 0, 0, 1)' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono text-xl font-bold tabular-nums text-[#191C20] dark:text-[#E3E5EC]">
+          {percent}%
+        </span>
+        <span className="text-[10px] font-medium text-[#515864] dark:text-[#9EA6B6]">
+          today
+        </span>
+      </div>
+    </div>
+  );
+};
+
 export const TodayView: React.FC<TodayViewProps> = ({
   profile,
+  settings,
   selectedDateKey,
   todayDateKey,
   summaries,
@@ -61,6 +122,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   goalStreak,
   dualWinStreak,
   onOpenProfile,
+  onDismissProfileChecklist,
   onSelectDate,
   onOpenNewGoal,
   onEditGoal,
@@ -70,6 +132,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onOpenQuickExpense,
 }) => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'done'>('all');
+  const [confirmDeleteGoal, setConfirmDeleteGoal] = useState<DailyGoal | null>(null);
 
   const selectedSummary = useMemo(
     () =>
@@ -147,469 +210,577 @@ export const TodayView: React.FC<TodayViewProps> = ({
     return 'Good evening';
   }, []);
 
+  const profileCompletion = useMemo(
+    () => computeProfileCompletion(profile, settings),
+    [profile, settings]
+  );
+  const showProfileTask =
+    profileCompletion.percent < 100 && !profile.profileChecklistDismissed;
+
   return (
-    <div className="space-y-6">
-      {/* Personalized Profile Greeting Bar */}
-      <section className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            aria-label="Open personal profile"
-            className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1677FF] cursor-pointer shrink-0"
-          >
+    <div className="space-y-4 sm:space-y-6">
+      {/* Simple Personal Greeting Row */}
+      <section className="flex items-center justify-between gap-3">
+        <ButtonBase
+          onClick={onOpenProfile}
+          sx={{ borderRadius: 4, p: 0.5, ml: -0.5, textAlign: 'left', minWidth: 0 }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
             <ProfileAvatar profile={profile} size="md" />
-          </button>
-          <div className="min-w-0">
-            <h1 className="font-display text-lg sm:text-xl font-bold text-[#111827] dark:text-[#F3F6FA] truncate">
-              {greetingLabel}, {profile.name || 'Explorer'}
-            </h1>
-            <p className="text-xs text-[#525B6B] dark:text-[#94A3B8] truncate">
-              {profile.role} · {profile.focusPillar} · Target{' '}
-              <span className="font-mono tabular-nums">
-                {formatDurationMinutes(profile.dailyFocusTargetMinutes)}
-              </span>
-              /day
-            </p>
+            <div className="min-w-0">
+              <h1 className="font-display text-lg sm:text-xl font-bold text-[#191C20] dark:text-[#E3E5EC] truncate leading-tight">
+                {greetingLabel}, {profile.name || 'Explorer'}
+              </h1>
+              <p className="text-xs text-[#515864] dark:text-[#9EA6B6] truncate mt-0.5">
+                {profile.username ? `@${profile.username} · ` : ''}
+                {profile.focusPillar} · Goal {formatDurationMinutes(profile.dailyFocusTargetMinutes)}
+              </p>
+            </div>
           </div>
+        </ButtonBase>
+
+        <div className="flex items-center gap-1 text-xs font-mono tabular-nums font-bold text-[#00639B] dark:text-[#8ACEFF] shrink-0">
+          <LocalFireDepartmentRoundedIcon sx={{ fontSize: 18 }} />
+          <span>{dualWinStreak}d</span>
         </div>
-        <Button size="small" onClick={onOpenProfile} className="min-h-[38px] shrink-0">
-          Profile
-        </Button>
       </section>
 
-      {/* 7-Day Horizontal Interactive Date Scroller */}
+      {/* Compact Profile Completion Task Card (Auto-hides at 100%) */}
+      {showProfileTask && (
+        <Card className="p-4 sm:p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-10 h-10 rounded-2xl bg-[#CEE5FF] dark:bg-[#004B73] text-[#00639B] dark:text-[#8ACEFF] inline-flex items-center justify-center shrink-0">
+                <ManageAccountsRoundedIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-display text-sm sm:text-base font-bold text-[#191C20] dark:text-[#E3E5EC] truncate">
+                    Complete your profile
+                  </h2>
+                  <span className="font-mono text-xs font-bold tabular-nums text-[#00639B] dark:text-[#8ACEFF]">
+                    {profileCompletion.percent}%
+                  </span>
+                </div>
+                <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+                  {profileCompletion.completedCount} of {profileCompletion.totalCount} quick details finished
+                </p>
+              </div>
+            </div>
+            <IconButton
+              size="small"
+              onClick={onDismissProfileChecklist}
+              aria-label="Dismiss profile completion task"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </div>
+
+          <LinearProgress
+            variant="determinate"
+            value={profileCompletion.percent}
+            sx={{ height: 6 }}
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {profileCompletion.tasks.map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={onOpenProfile}
+                  className={`inline-flex items-center gap-1 text-xs cursor-pointer transition-colors ${
+                    task.completed
+                      ? 'text-[#0E7A56] dark:text-[#6DDBAC] font-medium line-through opacity-80'
+                      : 'text-[#191C20] dark:text-[#E3E5EC] font-semibold hover:text-[#00639B] dark:hover:text-[#8ACEFF]'
+                  }`}
+                >
+                  {task.completed ? (
+                    <CheckCircleRoundedIcon sx={{ fontSize: 15 }} />
+                  ) : (
+                    <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 15 }} />
+                  )}
+                  <span>{task.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <Button
+              size="small"
+              variant="contained"
+              onClick={onOpenProfile}
+              endIcon={<ArrowForwardRoundedIcon sx={{ fontSize: 15 }} />}
+            >
+              Finish Profile
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Clean Interactive 7-Day Strip */}
       <section aria-label="Select date">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
           {summaries.map((day) => {
             const isSelected = day.dateKey === selectedDateKey;
             const isToday = day.dateKey === todayDateKey;
             return (
-              <button
+              <ButtonBase
                 key={day.dateKey}
-                type="button"
                 onClick={() => onSelectDate(day.dateKey)}
-                className={`min-w-[60px] min-h-[64px] flex-1 flex flex-col items-center justify-center rounded-2xl border transition-all duration-150 ${
-                  isSelected
-                    ? 'bg-[#1677FF] border-[#1677FF] text-white shadow-sm'
-                    : 'bg-white dark:bg-[#131A26] border-[#E5E7EB] dark:border-[#222C3E] text-[#111827] dark:text-[#F3F6FA] hover:border-[#1677FF]/50'
-                }`}
+                sx={{
+                  borderRadius: 4,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  minHeight: 62,
+                  py: 1,
+                  px: 0.5,
+                  border: '1px solid',
+                  borderColor: isSelected ? 'primary.main' : 'divider',
+                  bgcolor: isSelected ? 'primary.main' : 'background.paper',
+                  color: isSelected ? 'primary.contrastText' : 'text.primary',
+                  transition: 'all 160ms ease',
+                }}
               >
-                <span
-                  className={`text-[11px] font-medium ${
-                    isSelected ? 'text-white/85' : 'text-[#525B6B] dark:text-[#94A3B8]'
-                  }`}
-                >
-                  {isToday ? 'Today' : day.dayShort}
+                <span className="text-[10px] sm:text-[11px] font-medium opacity-80 leading-none">
+                  {isToday ? 'Now' : day.dayShort.slice(0, 3)}
                 </span>
-                <span className="font-mono text-base font-semibold tabular-nums mt-0.5">
+                <span className="font-mono text-sm sm:text-base font-bold tabular-nums leading-none">
                   {day.dayNum}
                 </span>
                 <span
-                  className={`text-[10px] font-mono tabular-nums mt-0.5 ${
+                  className={`w-4 h-1 rounded-full ${
                     isSelected
-                      ? 'text-white/90'
+                      ? 'bg-white/80 dark:bg-[#003352]/80'
                       : day.dualWin
-                        ? 'text-[#10B981]'
-                        : 'text-[#525B6B] dark:text-[#94A3B8]'
+                        ? 'bg-[#0E7A56] dark:bg-[#6DDBAC]'
+                        : day.avgGoalProgress > 0
+                          ? 'bg-[#00639B] dark:bg-[#8ACEFF]'
+                          : 'bg-[#DDE3EE] dark:bg-[#2B313E]'
                   }`}
-                >
-                  {day.avgGoalProgress}%
-                </span>
-              </button>
+                />
+              </ButtonBase>
             );
           })}
         </div>
       </section>
 
-      {/* Focal Hero Split: Daily Target Progress Ring + Daily Budget vs Goal Streak */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-        <div className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-6">
-          <div className="shrink-0">
-            <Progress
-              type="dashboard"
-              percent={selectedSummary.avgGoalProgress}
-              size={132}
-              strokeWidth={10}
-              strokeColor={selectedSummary.avgGoalProgress >= 100 ? '#10B981' : '#1677FF'}
-              format={(pct) => (
-                <div className="flex flex-col items-center">
-                  <span className="font-mono text-2xl font-bold tabular-nums text-[#111827] dark:text-[#F3F6FA]">
-                    {pct}%
-                  </span>
-                  <span className="text-[11px] text-[#525B6B] dark:text-[#94A3B8]">
-                    daily target
-                  </span>
-                </div>
-              )}
-            />
-          </div>
+      {/* Simple Unified Daily Summary & Budget Card */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 items-stretch">
+        <Card className="lg:col-span-7 p-4 sm:p-6 flex items-center gap-4 sm:gap-6">
+          <ProgressRing
+            percent={selectedSummary.avgGoalProgress}
+            isDone={selectedSummary.avgGoalProgress >= 100 && selectedSummary.totalGoalsCount > 0}
+          />
 
-          <div className="flex-1 w-full space-y-4">
+          <div className="flex-1 min-w-0 space-y-3">
             <div>
-              <h2 className="font-display text-xl sm:text-2xl font-bold text-[#111827] dark:text-[#F3F6FA]">
-                Daily Target Progress
+              <h2 className="font-display text-base sm:text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+                Daily Overview
               </h2>
-              <p className="text-sm text-[#525B6B] dark:text-[#94A3B8] mt-1">
-                {selectedSummary.completedGoalsCount} of {selectedSummary.totalGoalsCount} goals
-                finished · {formatDurationMinutes(selectedSummary.totalMinutesWorked)} focused work
+              <p className="text-xs sm:text-sm text-[#515864] dark:text-[#9EA6B6] mt-0.5">
+                {selectedSummary.completedGoalsCount}/{selectedSummary.totalGoalsCount} goals done ·{' '}
+                <span className="font-mono tabular-nums">
+                  {formatDurationMinutes(selectedSummary.totalMinutesWorked)}
+                </span>{' '}
+                focus
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-[#E5E7EB] dark:border-[#222C3E]">
+            <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-[#DDE3EE] dark:border-[#2B313E]">
               <div>
-                <div className="text-xs text-[#525B6B] dark:text-[#94A3B8]">Work completed</div>
-                <div className="font-mono text-lg font-semibold tabular-nums text-[#111827] dark:text-[#F3F6FA] mt-0.5">
-                  {formatDurationMinutes(selectedSummary.totalMinutesWorked)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-[#525B6B] dark:text-[#94A3B8]">Goal streak</div>
-                <div className="font-mono text-lg font-semibold tabular-nums text-[#111827] dark:text-[#F3F6FA] mt-0.5 flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-[#1677FF]" />
+                <div className="text-[11px] text-[#515864] dark:text-[#9EA6B6]">Goal streak</div>
+                <div className="font-mono text-sm sm:text-base font-bold tabular-nums mt-0.5">
                   {goalStreak} {goalStreak === 1 ? 'day' : 'days'}
                 </div>
               </div>
+              <div>
+                <div className="text-[11px] text-[#515864] dark:text-[#9EA6B6]">Dual-Win</div>
+                <div className="font-mono text-sm sm:text-base font-bold tabular-nums text-[#0E7A56] dark:text-[#6DDBAC] mt-0.5">
+                  {dualWinStreak} {dualWinStreak === 1 ? 'day' : 'days'}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </Card>
 
-        {/* Daily Budget Cap vs Dual-Win Streak Card */}
-        <div className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 sm:p-6 flex flex-col justify-between gap-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-medium text-[#525B6B] dark:text-[#94A3B8]">
-                Daily Budget Cap vs. Streak
-              </div>
-              <div className="font-mono text-2xl font-bold tabular-nums text-[#111827] dark:text-[#F3F6FA] mt-1">
-                {formatCurrency(selectedSummary.totalSpent, currencySymbol)}
-                <span className="text-sm font-normal text-[#525B6B] dark:text-[#94A3B8]">
-                  {' '}
-                  / {formatCurrency(dailyBudgetCap, currencySymbol)}
-                </span>
+        <Card className="lg:col-span-5 p-4 sm:p-6 flex flex-col justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-10 h-10 rounded-2xl bg-[#D3F4E5] dark:bg-[#0A3B2B] text-[#0E7A56] dark:text-[#6DDBAC] inline-flex items-center justify-center shrink-0">
+                <AccountBalanceWalletRoundedIcon fontSize="small" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-xs text-[#515864] dark:text-[#9EA6B6]">Today’s Spend</div>
+                <div className="font-mono text-lg sm:text-xl font-bold tabular-nums truncate">
+                  {formatCurrency(selectedSummary.totalSpent, currencySymbol)}
+                  <span className="text-xs font-normal text-[#515864] dark:text-[#9EA6B6]">
+                    {' '}
+                    / {formatCurrency(dailyBudgetCap, currencySymbol)}
+                  </span>
+                </div>
               </div>
             </div>
+
             <Button
-              size="middle"
+              variant="outlined"
+              size="small"
               onClick={onOpenQuickExpense}
-              icon={<Wallet className="w-4 h-4" />}
-              className="min-h-[40px] whitespace-nowrap shrink-0"
+              startIcon={<AddRoundedIcon />}
             >
-              Log Spend
+              Spend
             </Button>
           </div>
 
-          <div className="space-y-2">
-            <Progress
-              percent={Math.min(100, budgetRatio)}
-              showInfo={false}
-              strokeWidth={10}
-              strokeColor={
-                isOverBudget ? '#DC2626' : isBudgetWarn ? '#D97706' : '#10B981'
-              }
+          <div className="space-y-1.5">
+            <LinearProgress
+              variant="determinate"
+              value={Math.min(100, budgetRatio)}
+              color={isOverBudget ? 'error' : isBudgetWarn ? 'warning' : 'success'}
+              sx={{ height: 8 }}
             />
             <div className="flex items-center justify-between text-xs">
               <span
                 className={`font-medium ${
                   isOverBudget
-                    ? 'text-[#DC2626] dark:text-[#F87171]'
+                    ? 'text-[#BA1A1A] dark:text-[#FFB4AB]'
                     : isBudgetWarn
-                      ? 'text-[#D97706] dark:text-[#FBBF24]'
-                      : 'text-[#10B981]'
+                      ? 'text-[#A15C00] dark:text-[#FFB951]'
+                      : 'text-[#0E7A56] dark:text-[#6DDBAC]'
                 }`}
               >
                 {isOverBudget
-                  ? `Over cap by ${formatCurrency(Math.abs(remainingBudget), currencySymbol)}`
-                  : isBudgetWarn
-                    ? `Approaching cap · ${formatCurrency(remainingBudget, currencySymbol)} left`
-                    : `On budget · ${formatCurrency(remainingBudget, currencySymbol)} left`}
+                  ? `Over by ${formatCurrency(Math.abs(remainingBudget), currencySymbol)}`
+                  : `${formatCurrency(remainingBudget, currencySymbol)} left`}
               </span>
-              <span className="font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8]">
+              <span className="font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6]">
                 {budgetRatio}%
               </span>
             </div>
           </div>
-
-          <div className="pt-3 border-t border-[#E5E7EB] dark:border-[#222C3E] flex items-center justify-between text-xs">
-            <span className="text-[#525B6B] dark:text-[#94A3B8]">
-              Dual-Win streak (Goals + Budget)
-            </span>
-            <span className="font-mono font-semibold tabular-nums text-[#10B981]">
-              {dualWinStreak} {dualWinStreak === 1 ? 'day' : 'days'}
-            </span>
-          </div>
-        </div>
+        </Card>
       </section>
 
-      {/* Goals Toolbar & List */}
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-lg font-bold text-[#111827] dark:text-[#F3F6FA]">
-              Target Goals
+      {/* Simple Target Goals Section */}
+      <section className="space-y-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2">
+            <h2 className="font-display text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+              Daily Targets
             </h2>
-            <span className="text-xs font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8]">
-              {dayGoals.length} scheduled
+            <span className="text-xs font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6]">
+              {dayGoals.length}
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <Segmented
+          {dayGoals.length > 0 && (
+            <ToggleButtonGroup
+              exclusive
+              size="small"
               value={filterStatus}
-              onChange={(val) => setFilterStatus(val as 'all' | 'active' | 'done')}
-              options={[
-                { label: 'All', value: 'all' },
-                { label: 'Active', value: 'active' },
-                { label: 'Done', value: 'done' },
-              ]}
-            />
-            <Button
-              type="primary"
-              onClick={onOpenNewGoal}
-              icon={<Plus className="w-4 h-4" />}
-              className="min-h-[44px] whitespace-nowrap shrink-0"
+              onChange={(_, val) => {
+                if (val) setFilterStatus(val as 'all' | 'active' | 'done');
+              }}
             >
-              New Goal
-            </Button>
-          </div>
+              <ToggleButton value="all" sx={{ minHeight: 32, py: 0.25, px: 1.5 }}>
+                All
+              </ToggleButton>
+              <ToggleButton value="active" sx={{ minHeight: 32, py: 0.25, px: 1.5 }}>
+                Active
+              </ToggleButton>
+              <ToggleButton value="done" sx={{ minHeight: 32, py: 0.25, px: 1.5 }}>
+                Done
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
         </div>
 
         {filteredGoals.length === 0 ? (
-          <div className="rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] py-12 px-4">
-            <Empty
-              description={
-                <span className="text-sm text-[#525B6B] dark:text-[#94A3B8]">
-                  {dayGoals.length === 0
-                    ? 'No daily targets logged for this date yet.'
-                    : 'No goals match the selected filter.'}
-                </span>
-              }
-            >
-              {dayGoals.length === 0 && (
-                <Button type="primary" onClick={onOpenNewGoal} className="min-h-[44px]">
-                  Add your first daily target
-                </Button>
-              )}
-            </Empty>
-          </div>
+          <Card className="p-8 sm:p-10 text-center flex flex-col items-center gap-3">
+            <span className="w-14 h-14 rounded-2xl bg-[#CEE5FF] dark:bg-[#004B73] text-[#00639B] dark:text-[#8ACEFF] inline-flex items-center justify-center">
+              <TrackChangesRoundedIcon sx={{ fontSize: 30 }} />
+            </span>
+            <div className="space-y-1 max-w-xs">
+              <h3 className="font-display text-base font-bold text-[#191C20] dark:text-[#E3E5EC]">
+                {dayGoals.length === 0 ? 'Ready for a fresh day' : 'No goals match this filter'}
+              </h3>
+              <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+                {dayGoals.length === 0
+                  ? 'Add your first target with a slider, counter, checklist, or focus timer.'
+                  : 'Switch filter above to view your other targets.'}
+              </p>
+            </div>
+            {dayGoals.length === 0 && (
+              <Button
+                variant="contained"
+                onClick={onOpenNewGoal}
+                startIcon={<AddRoundedIcon />}
+                sx={{ mt: 1 }}
+              >
+                Add Daily Target
+              </Button>
+            )}
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
             {filteredGoals.map((goal) => {
               const pct = calculateGoalProgress(goal);
               const isDone = pct >= 100;
               return (
-                <article
+                <motion.div
                   key={goal.id}
-                  className="rounded-2xl bg-white dark:bg-[#131A26] border border-[#E5E7EB] dark:border-[#222C3E] p-5 flex flex-col justify-between gap-4 transition-colors"
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.16 }}
                 >
-                  {/* Goal Card Header */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        {isDone && (
-                          <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0" />
-                        )}
-                        <h3 className="font-display text-base font-semibold text-[#111827] dark:text-[#F3F6FA] truncate">
-                          {goal.title}
-                        </h3>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                        <span>{goal.category}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="capitalize">{goal.trackingMode}</span>
-                        {goal.loggedMinutes > 0 && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            <span className="font-mono tabular-nums">
-                              {formatDurationMinutes(goal.loggedMinutes)} logged
-                            </span>
-                          </>
-                        )}
-                        {goal.reminderTime && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            <span className="font-mono tabular-nums">
-                              Alert {goal.reminderTime}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                  <Card className="p-4 sm:p-5 h-full flex flex-col justify-between gap-3.5">
+                    {/* Goal Header with Material Category Icon */}
+                    <div className="flex items-start gap-3">
+                      <GoalCategoryIcon category={goal.category} />
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span
-                        className={`font-mono text-base font-bold tabular-nums mr-1 ${
-                          isDone
-                            ? 'text-[#10B981]'
-                            : 'text-[#111827] dark:text-[#F3F6FA]'
-                        }`}
-                      >
-                        {pct}%
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onEditGoal(goal)}
-                        aria-label={`Edit ${goal.title}`}
-                        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#525B6B] dark:text-[#94A3B8] hover:text-[#1677FF] transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <Popconfirm
-                        title="Delete this goal?"
-                        okText="Delete"
-                        okType="danger"
-                        onConfirm={() => onDeleteGoal(goal.id)}
-                      >
-                        <button
-                          type="button"
-                          aria-label={`Delete ${goal.title}`}
-                          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#525B6B] dark:text-[#94A3B8] hover:text-[#DC2626] transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </Popconfirm>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Work Logging Controls by Mode */}
-                  {goal.trackingMode === 'slider' && (
-                    <div className="space-y-1.5">
-                      <Slider
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={pct}
-                        onChange={(val) => handleSliderChange(goal, val)}
-                      />
-                      <div className="flex items-center justify-between text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                        <span>Drag to update work completed</span>
-                        {!isDone && (
-                          <button
-                            type="button"
-                            onClick={() => handleSliderChange(goal, 100)}
-                            className="text-[#1677FF] font-medium hover:underline"
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-display text-[15px] font-semibold text-[#191C20] dark:text-[#E3E5EC] leading-snug line-clamp-2 flex items-center gap-1.5">
+                            {isDone && (
+                              <CheckCircleRoundedIcon
+                                sx={{ fontSize: 17 }}
+                                className="text-[#0E7A56] dark:text-[#6DDBAC] shrink-0"
+                              />
+                            )}
+                            <span>{goal.title}</span>
+                          </h3>
+                          <span
+                            className={`font-mono text-sm font-bold tabular-nums shrink-0 ${
+                              isDone
+                                ? 'text-[#0E7A56] dark:text-[#6DDBAC]'
+                                : 'text-[#00639B] dark:text-[#8ACEFF]'
+                            }`}
                           >
-                            Mark 100%
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                            {pct}%
+                          </span>
+                        </div>
 
-                  {goal.trackingMode === 'counter' && (
-                    <div className="space-y-3">
-                      <Progress
-                        percent={pct}
-                        showInfo={false}
-                        strokeColor={isDone ? '#10B981' : '#1677FF'}
-                      />
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8]">
-                          {goal.currentValue} / {goal.targetValue} {goal.unitLabel}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => handleCounterChange(goal, goal.currentValue - 1)}
-                            icon={<Minus className="w-4 h-4" />}
-                            aria-label="Decrease count"
-                            className="min-w-[44px] min-h-[44px]"
-                          />
-                          <InputNumber
-                            min={0}
-                            max={goal.targetValue * 2}
-                            value={goal.currentValue}
-                            onChange={(val) => handleCounterChange(goal, Number(val) || 0)}
-                            className="w-20 font-mono"
-                            size="large"
-                          />
-                          <Button
-                            type="primary"
-                            onClick={() => handleCounterChange(goal, goal.currentValue + 1)}
-                            icon={<Plus className="w-4 h-4" />}
-                            aria-label="Increase count"
-                            className="min-w-[44px] min-h-[44px]"
-                          />
+                        <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-[#515864] dark:text-[#9EA6B6] mt-0.5">
+                          <span>{goal.category}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="capitalize">{goal.trackingMode}</span>
+                          {goal.loggedMinutes > 0 && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono tabular-nums">
+                                {formatDurationMinutes(goal.loggedMinutes)}
+                              </span>
+                            </>
+                          )}
+                          {goal.reminderTime && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono tabular-nums">{goal.reminderTime}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
-                  )}
 
-                  {goal.trackingMode === 'checklist' && (
-                    <div className="space-y-2.5">
-                      <Progress
-                        percent={pct}
-                        showInfo={false}
-                        strokeColor={isDone ? '#10B981' : '#1677FF'}
-                      />
-                      <div className="divide-y divide-[#E5E7EB] dark:divide-[#222C3E]">
-                        {goal.subtasks.map((st) => (
-                          <div
-                            key={st.id}
-                            className="py-2 first:pt-0 last:pb-0 flex items-center justify-between gap-2 min-h-[40px]"
-                          >
-                            <Checkbox
-                              checked={st.completed}
-                              onChange={() => handleToggleSubtask(goal, st.id)}
+                    {/* Interactive Mode Controls */}
+                    {goal.trackingMode === 'slider' && (
+                      <div className="space-y-0.5">
+                        <Slider
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={pct}
+                          valueLabelDisplay="auto"
+                          valueLabelFormat={(v) => `${v}%`}
+                          color={isDone ? 'success' : 'primary'}
+                          onChange={(_, val) => handleSliderChange(goal, Number(val))}
+                        />
+                        {!isDone && (
+                          <div className="flex justify-end">
+                            <Button
+                              size="small"
+                              onClick={() => handleSliderChange(goal, 100)}
+                              sx={{ minHeight: 30, py: 0, fontSize: '0.75rem' }}
                             >
-                              <span
-                                className={`text-sm ${
-                                  st.completed
-                                    ? 'line-through text-[#525B6B] dark:text-[#94A3B8]'
-                                    : 'text-[#111827] dark:text-[#F3F6FA]'
-                                }`}
-                              >
-                                {st.title}
-                              </span>
-                            </Checkbox>
-                            <span className="text-xs font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8] shrink-0">
-                              wt {st.weight}
-                            </span>
+                              Mark 100%
+                            </Button>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {goal.trackingMode === 'timer' && (
-                    <div className="space-y-2.5">
-                      <Progress
-                        percent={pct}
-                        showInfo={false}
-                        strokeColor={isDone ? '#10B981' : '#1677FF'}
-                      />
-                      <div className="flex items-center justify-between text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                        <span className="font-mono tabular-nums flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5" />
-                          {formatDurationMinutes(goal.loggedMinutes)} /{' '}
-                          {formatDurationMinutes(goal.targetMinutes)} target
-                        </span>
-                        <span className="font-mono tabular-nums">
-                          {Math.max(0, goal.targetMinutes - goal.loggedMinutes)}m left
-                        </span>
+                    {goal.trackingMode === 'counter' && (
+                      <div className="space-y-2.5">
+                        <LinearProgress
+                          variant="determinate"
+                          value={pct}
+                          color={isDone ? 'success' : 'primary'}
+                          sx={{ height: 7 }}
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6]">
+                            {goal.currentValue} / {goal.targetValue} {goal.unitLabel}
+                          </span>
+                          <div className="inline-flex items-center gap-1.5">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCounterChange(goal, goal.currentValue - 1)}
+                              aria-label="Decrease count"
+                              sx={{ border: '1px solid', borderColor: 'divider' }}
+                            >
+                              <RemoveRoundedIcon fontSize="small" />
+                            </IconButton>
+                            <span className="min-w-[36px] text-center font-mono text-sm font-bold tabular-nums">
+                              {goal.currentValue}
+                            </span>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleCounterChange(goal, goal.currentValue + 1)}
+                              aria-label="Increase count"
+                              sx={{
+                                bgcolor: 'primary.main',
+                                color: 'primary.contrastText',
+                                '&:hover': { bgcolor: 'primary.dark' },
+                              }}
+                            >
+                              <AddRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Footer Action: Launch Pomodoro / Focus Timer bound to this Goal */}
-                  <div className="pt-3 border-t border-[#E5E7EB] dark:border-[#222C3E] flex items-center justify-between gap-2">
-                    <span className="text-xs text-[#525B6B] dark:text-[#94A3B8]">
-                      {isDone ? 'Completed today' : 'Ready for focus block'}
-                    </span>
-                    <Button
-                      size="middle"
-                      onClick={() => onStartFocusForGoal(goal.id)}
-                      icon={<Play className="w-3.5 h-3.5" />}
-                      className="min-h-[40px] whitespace-nowrap shrink-0"
-                    >
-                      Start Focus
-                    </Button>
-                  </div>
-                </article>
+                    {goal.trackingMode === 'checklist' && (
+                      <div className="space-y-1.5">
+                        <LinearProgress
+                          variant="determinate"
+                          value={pct}
+                          color={isDone ? 'success' : 'primary'}
+                          sx={{ height: 7 }}
+                        />
+                        <div className="divide-y divide-[#DDE3EE] dark:divide-[#2B313E]">
+                          {goal.subtasks.map((st) => (
+                            <div
+                              key={st.id}
+                              onClick={() => handleToggleSubtask(goal, st.id)}
+                              className="py-1.5 flex items-center justify-between gap-2 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <Checkbox
+                                  size="small"
+                                  checked={st.completed}
+                                  color={isDone ? 'success' : 'primary'}
+                                  sx={{ p: 0.5 }}
+                                />
+                                <span
+                                  className={`text-sm leading-snug truncate ${
+                                    st.completed
+                                      ? 'line-through text-[#515864] dark:text-[#9EA6B6]'
+                                      : 'text-[#191C20] dark:text-[#E3E5EC]'
+                                  }`}
+                                >
+                                  {st.title}
+                                </span>
+                              </div>
+                              <span className="text-[11px] font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6] shrink-0">
+                                {st.weight}x
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {goal.trackingMode === 'timer' && (
+                      <div className="space-y-2">
+                        <LinearProgress
+                          variant="determinate"
+                          value={pct}
+                          color={isDone ? 'success' : 'primary'}
+                          sx={{ height: 7 }}
+                        />
+                        <div className="flex items-center justify-between text-xs text-[#515864] dark:text-[#9EA6B6]">
+                          <span className="font-mono tabular-nums inline-flex items-center gap-1">
+                            <ScheduleRoundedIcon sx={{ fontSize: 15 }} />
+                            {formatDurationMinutes(goal.loggedMinutes)} /{' '}
+                            {formatDurationMinutes(goal.targetMinutes)}
+                          </span>
+                          <span className="font-mono tabular-nums">
+                            {Math.max(0, goal.targetMinutes - goal.loggedMinutes)}m left
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Clean Action Footer */}
+                    <div className="pt-2.5 border-t border-[#DDE3EE] dark:border-[#2B313E] flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-0.5">
+                        <IconButton
+                          size="small"
+                          onClick={() => onEditGoal(goal)}
+                          aria-label={`Edit ${goal.title}`}
+                        >
+                          <EditRoundedIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => setConfirmDeleteGoal(goal)}
+                          aria-label={`Delete ${goal.title}`}
+                        >
+                          <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </div>
+
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => onStartFocusForGoal(goal.id)}
+                        startIcon={<PlayArrowRoundedIcon />}
+                      >
+                        Focus
+                      </Button>
+                    </div>
+                  </Card>
+                </motion.div>
               );
             })}
           </div>
         )}
       </section>
+
+      {/* Delete Goal Confirmation Dialog */}
+      <Dialog
+        open={Boolean(confirmDeleteGoal)}
+        onClose={() => setConfirmDeleteGoal(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle className="font-display font-bold">Delete goal?</DialogTitle>
+        <DialogContent>
+          <p className="text-sm text-[#515864] dark:text-[#9EA6B6]">
+            Remove “{confirmDeleteGoal?.title}” from your daily targets?
+          </p>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" onClick={() => setConfirmDeleteGoal(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (confirmDeleteGoal) onDeleteGoal(confirmDeleteGoal.id);
+              setConfirmDeleteGoal(null);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

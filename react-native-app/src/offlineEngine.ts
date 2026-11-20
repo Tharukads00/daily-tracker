@@ -110,76 +110,12 @@ export const INITIAL_STATE: OfflineState = {
     role: 'Daily Achiever',
     focusPillar: 'Work & Projects',
     dailyFocusTargetMinutes: 150,
-    avatarColor: '#1677FF',
+    avatarColor: '#00639B',
     onboardingCompleted: false,
   },
-  goals: [
-    {
-      id: 'g-1',
-      dateKey: todayKey(),
-      title: 'Complete Android sprint deliverables',
-      category: 'Work',
-      trackingMode: 'checklist',
-      progressPercent: 60,
-      currentValue: 0,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 90,
-      loggedMinutes: 50,
-      subtasks: [
-        { id: 's-1', title: 'Local AsyncStorage sync layer', weight: 3, completed: true },
-        { id: 's-2', title: 'Budget cap alert triggers', weight: 3, completed: true },
-        { id: 's-3', title: 'Dark mode polish on Android', weight: 4, completed: false },
-      ],
-    },
-    {
-      id: 'g-2',
-      dateKey: todayKey(),
-      title: 'Deep Focus Study Block',
-      category: 'Study',
-      trackingMode: 'timer',
-      progressPercent: 55,
-      currentValue: 0,
-      targetValue: 90,
-      unitLabel: 'min',
-      targetMinutes: 90,
-      loggedMinutes: 50,
-      subtasks: [],
-    },
-    {
-      id: 'g-3',
-      dateKey: todayKey(),
-      title: 'Read engineering pages',
-      category: 'Study',
-      trackingMode: 'counter',
-      progressPercent: 70,
-      currentValue: 14,
-      targetValue: 20,
-      unitLabel: 'pages',
-      targetMinutes: 30,
-      loggedMinutes: 20,
-      subtasks: [],
-    },
-  ],
+  goals: [],
   sessions: [],
-  expenses: [
-    {
-      id: 'e-1',
-      dateKey: todayKey(),
-      amount: 14.5,
-      category: 'Food',
-      note: 'Lunch & coffee',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'e-2',
-      dateKey: todayKey(),
-      amount: 8.75,
-      category: 'Transport',
-      note: 'Commute pass',
-      createdAt: new Date().toISOString(),
-    },
-  ],
+  expenses: [],
   settings: {
     themeMode: 'system',
     currencySymbol: '$',
@@ -202,7 +138,7 @@ export async function loadLocalData(): Promise<OfflineState> {
       return JSON.parse(raw) as OfflineState;
     }
   } catch {
-    // fallback to seed state
+    // fallback to clean initial state
   }
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_STATE));
   return INITIAL_STATE;
@@ -226,7 +162,7 @@ export async function configureAndroidNotifications(): Promise<boolean> {
       name: 'Daymark Goals & Budget Reminders',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 200, 150, 200],
-      lightColor: '#1677FF',
+      lightColor: '#00639B',
     });
   }
 

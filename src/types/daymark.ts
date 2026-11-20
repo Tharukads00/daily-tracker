@@ -99,14 +99,48 @@ export type AvatarStyle = 'art' | 'monogram' | 'photo';
 
 export interface UserProfile {
   name: string;
+  username?: string;
   role: string;
+  bio?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
   focusPillar: FocusPillar;
   dailyFocusTargetMinutes: number;
   avatarStyle: AvatarStyle;
   avatarColor: string;
   avatarDataUrl?: string;
+  avatarCustomized?: boolean;
+  dailyTargetsConfigured?: boolean;
+  profileChecklistDismissed?: boolean;
   onboardingCompleted: boolean;
   createdAt: string;
+}
+
+export interface LocalUserAccount {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  focusPillar: FocusPillar;
+  avatarStyle: AvatarStyle;
+  avatarColor: string;
+  avatarDataUrl?: string;
+  pinHash?: string;
+  createdAt: string;
+  lastSignedInAt: string;
+}
+
+export interface LocalAuthRegistry {
+  accounts: LocalUserAccount[];
+  activeAccountId: string | null;
+}
+
+export interface ProfileCompletionTask {
+  id: 'identity' | 'role_bio' | 'contact' | 'avatar' | 'targets';
+  label: string;
+  description: string;
+  completed: boolean;
 }
 
 export interface DaymarkStoreState {

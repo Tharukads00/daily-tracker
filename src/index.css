@@ -8,24 +8,24 @@
 }
 
 :root {
-  --bg-canvas: #f6f7f9;
+  --bg-canvas: #f6f8fc;
   --bg-surface: #ffffff;
-  --bg-subtle: #eff2f6;
-  --border-hairline: #e5e7eb;
-  --text-primary: #111827;
-  --text-secondary: #525b6b;
-  --accent-primary: #1677ff;
+  --bg-subtle: #f0f4fa;
+  --border-hairline: #dde3ee;
+  --text-primary: #191c20;
+  --text-secondary: #515864;
+  --accent-primary: #00639b;
   color-scheme: light;
 }
 
 .dark {
-  --bg-canvas: #0b0f17;
-  --bg-surface: #131a26;
-  --bg-subtle: #1b2434;
-  --border-hairline: #222c3e;
-  --text-primary: #f3f6fa;
-  --text-secondary: #94a3b8;
-  --accent-primary: #4096ff;
+  --bg-canvas: #111318;
+  --bg-surface: #1a1d24;
+  --bg-subtle: #1e222b;
+  --border-hairline: #2b313e;
+  --text-primary: #e3e5ec;
+  --text-secondary: #9ea6b6;
+  --accent-primary: #8aceff;
   color-scheme: dark;
 }
 
@@ -35,6 +35,8 @@ body {
   background-color: var(--bg-canvas);
   color: var(--text-primary);
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  overflow-x: hidden;
 }
 
 .dark body {
@@ -57,7 +59,6 @@ h3,
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
-/* Clean scrollbars for horizontal date strip */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -66,23 +67,12 @@ h3,
   scrollbar-width: none;
 }
 
-/* Ant Design fine-tuning for tactile mobile touch ergonomics */
-.ant-slider-handle::after {
-  width: 18px !important;
-  height: 18px !important;
-  inset-block-start: -4px !important;
-}
-
-.ant-drawer .ant-drawer-content {
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-}
-
-@media (min-width: 768px) {
-  .ant-drawer-right .ant-drawer-content {
-    border-top-left-radius: 16px;
-    border-bottom-left-radius: 16px;
-    border-top-right-radius: 0;
+/* Prevent mobile browser auto-zoom on form inputs (< 16px) */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }
 

@@ -1,27 +1,38 @@
 import type {
-  DailyGoal,
   DaymarkStoreState,
-  ExpenseEntry,
-  NotificationRecord,
+  LocalAuthRegistry,
+  LocalUserAccount,
   UserProfile,
   UserSettings,
-  WorkSession,
 } from '../types/daymark';
-import { offsetDateKey, toDateKey } from '../utils/dateUtils';
+import { normalizeUsername } from '../utils/profileUtils';
 
 const DB_NAME = 'daymark_offline_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'snapshots';
-const SNAPSHOT_KEY = 'primary_state';
-const LS_KEY = 'daymark_local_state_v1';
+const LEGACY_SNAPSHOT_KEY = 'primary_state';
+const LEGACY_LS_KEY = 'daymark_local_state_v1';
+const REGISTRY_KEY = 'local_auth_registry_v1';
+const REGISTRY_LS_KEY = 'daymark_local_auth_registry_v1';
+
+const userSnapshotKey = (accountId: string) => `user_state_${accountId}`;
+const userLsKey = (accountId: string) => `daymark_local_state_${accountId}`;
 
 export const DEFAULT_PROFILE: UserProfile = {
   name: '',
+  username: '',
   role: 'Daily Achiever',
+  bio: '',
+  email: '',
+  phone: '',
+  location: '',
   focusPillar: 'Work & Projects',
   dailyFocusTargetMinutes: 150,
   avatarStyle: 'art',
-  avatarColor: '#1677FF',
+  avatarColor: '#00639B',
+  avatarCustomized: false,
+  dailyTargetsConfigured: false,
+  profileChecklistDismissed: false,
   onboardingCompleted: false,
   createdAt: new Date().toISOString(),
 };
@@ -39,366 +50,41 @@ export const DEFAULT_SETTINGS: UserSettings = {
   budgetWarningsEnabled: true,
 };
 
-export function createSeedState(): DaymarkStoreState {
-  const now = new Date();
-  const today = toDateKey(now);
-  const d1 = offsetDateKey(now, -1);
-  const d2 = offsetDateKey(now, -2);
-  const d3 = offsetDateKey(now, -3);
-  const d4 = offsetDateKey(now, -4);
-  const d5 = offsetDateKey(now, -5);
-  const d6 = offsetDateKey(now, -6);
-
-  const goals: DailyGoal[] = [
-    // Today's goals showcasing all 3+ work logging modes
-    {
-      id: 'goal-today-1',
-      dateKey: today,
-      title: 'Ship sprint API & offline sync tests',
-      category: 'Work',
-      trackingMode: 'checklist',
-      progressPercent: 60,
-      currentValue: 0,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 90,
-      loggedMinutes: 50,
-      reminderTime: '17:00',
-      subtasks: [
-        { id: 'st-1', title: 'Finalize local storage schema', weight: 3, completed: true },
-        { id: 'st-2', title: 'Write unit tests for budget triggers', weight: 3, completed: true },
-        { id: 'st-3', title: 'Audit dark-mode contrast on Android', weight: 2, completed: false },
-        { id: 'st-4', title: 'Document release notes', weight: 2, completed: false },
-      ],
-      createdAt: new Date(now.getTime() - 4 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-today-2',
-      dateKey: today,
-      title: 'Deep Focus Study Block',
-      category: 'Study',
-      trackingMode: 'timer',
-      progressPercent: 56,
-      currentValue: 0,
-      targetValue: 90,
-      unitLabel: 'min',
-      targetMinutes: 90,
-      loggedMinutes: 50,
-      reminderTime: '19:30',
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 3 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-today-3',
-      dateKey: today,
-      title: 'Read technical architecture pages',
-      category: 'Study',
-      trackingMode: 'counter',
-      progressPercent: 70,
-      currentValue: 14,
-      targetValue: 20,
-      unitLabel: 'pages',
-      targetMinutes: 40,
-      loggedMinutes: 25,
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 2 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-today-4',
-      dateKey: today,
-      title: 'Evening mobility & core workout',
-      category: 'Health',
-      trackingMode: 'slider',
-      progressPercent: 45,
-      currentValue: 45,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 30,
-      loggedMinutes: 15,
-      reminderTime: '20:00',
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 1 * 3600_000).toISOString(),
-    },
-    // Recent 6-day historical records for authentic Budget vs. Streak comparison
-    {
-      id: 'goal-d1-1',
-      dateKey: d1,
-      title: 'Complete UI component polish',
-      category: 'Work',
-      trackingMode: 'slider',
-      progressPercent: 100,
-      currentValue: 100,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 120,
-      loggedMinutes: 120,
-      subtasks: [],
-      completedAt: new Date(now.getTime() - 24 * 3600_000).toISOString(),
-      milestoneNotified: true,
-      createdAt: new Date(now.getTime() - 30 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-d1-2',
-      dateKey: d1,
-      title: '5km outdoor tempo run',
-      category: 'Health',
-      trackingMode: 'counter',
-      progressPercent: 100,
-      currentValue: 5,
-      targetValue: 5,
-      unitLabel: 'km',
-      targetMinutes: 30,
-      loggedMinutes: 30,
-      subtasks: [],
-      completedAt: new Date(now.getTime() - 22 * 3600_000).toISOString(),
-      milestoneNotified: true,
-      createdAt: new Date(now.getTime() - 30 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-d2-1',
-      dateKey: d2,
-      title: 'System design practice problems',
-      category: 'Study',
-      trackingMode: 'counter',
-      progressPercent: 90,
-      currentValue: 9,
-      targetValue: 10,
-      unitLabel: 'tasks',
-      targetMinutes: 90,
-      loggedMinutes: 85,
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 52 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-d3-1',
-      dateKey: d3,
-      title: 'Client deliverable milestone',
-      category: 'Work',
-      trackingMode: 'slider',
-      progressPercent: 85,
-      currentValue: 85,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 100,
-      loggedMinutes: 90,
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 76 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-d4-1',
-      dateKey: d4,
-      title: 'Weekly meal prep & budget audit',
-      category: 'Finance',
-      trackingMode: 'slider',
-      progressPercent: 60,
-      currentValue: 60,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 60,
-      loggedMinutes: 40,
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 100 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-d5-1',
-      dateKey: d5,
-      title: 'Finish React performance chapter',
-      category: 'Study',
-      trackingMode: 'slider',
-      progressPercent: 100,
-      currentValue: 100,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 75,
-      loggedMinutes: 75,
-      subtasks: [],
-      completedAt: new Date(now.getTime() - 120 * 3600_000).toISOString(),
-      milestoneNotified: true,
-      createdAt: new Date(now.getTime() - 125 * 3600_000).toISOString(),
-    },
-    {
-      id: 'goal-d6-1',
-      dateKey: d6,
-      title: 'Morning focus sprint',
-      category: 'Work',
-      trackingMode: 'slider',
-      progressPercent: 95,
-      currentValue: 95,
-      targetValue: 100,
-      unitLabel: '%',
-      targetMinutes: 90,
-      loggedMinutes: 85,
-      subtasks: [],
-      createdAt: new Date(now.getTime() - 148 * 3600_000).toISOString(),
-    },
-  ];
-
-  const sessions: WorkSession[] = [
-    {
-      id: 'sess-1',
-      dateKey: today,
-      goalId: 'goal-today-1',
-      goalTitle: 'Ship sprint API & offline sync tests',
-      mode: 'deep',
-      durationMinutes: 50,
-      startedAt: new Date(now.getTime() - 3.5 * 3600_000).toISOString(),
-      endedAt: new Date(now.getTime() - 2.6 * 3600_000).toISOString(),
-      note: 'Completed IndexedDB adapter and local sync tests',
-    },
-    {
-      id: 'sess-2',
-      dateKey: today,
-      goalId: 'goal-today-2',
-      goalTitle: 'Deep Focus Study Block',
-      mode: 'pomodoro',
-      durationMinutes: 25,
-      startedAt: new Date(now.getTime() - 2.1 * 3600_000).toISOString(),
-      endedAt: new Date(now.getTime() - 1.7 * 3600_000).toISOString(),
-      note: 'Reviewed offline-first cache strategies',
-    },
-    {
-      id: 'sess-3',
-      dateKey: today,
-      goalId: 'goal-today-2',
-      goalTitle: 'Deep Focus Study Block',
-      mode: 'pomodoro',
-      durationMinutes: 25,
-      startedAt: new Date(now.getTime() - 1.4 * 3600_000).toISOString(),
-      endedAt: new Date(now.getTime() - 1.0 * 3600_000).toISOString(),
-      note: 'Built notification scheduler prototype',
-    },
-    {
-      id: 'sess-d1',
-      dateKey: d1,
-      goalId: 'goal-d1-1',
-      goalTitle: 'Complete UI component polish',
-      mode: 'deep',
-      durationMinutes: 120,
-      startedAt: new Date(now.getTime() - 28 * 3600_000).toISOString(),
-      endedAt: new Date(now.getTime() - 26 * 3600_000).toISOString(),
-    },
-  ];
-
-  const expenses: ExpenseEntry[] = [
-    {
-      id: 'exp-today-1',
-      dateKey: today,
-      amount: 14.5,
-      category: 'Food',
-      note: 'Lunch bowl & iced coffee',
-      createdAt: new Date(now.getTime() - 3 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-today-2',
-      dateKey: today,
-      amount: 8.75,
-      category: 'Transport',
-      note: 'Metro pass top-up',
-      createdAt: new Date(now.getTime() - 5 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-today-3',
-      dateKey: today,
-      amount: 6.2,
-      category: 'Personal',
-      note: 'Notebook & fine-tip pens',
-      createdAt: new Date(now.getTime() - 1.2 * 3600_000).toISOString(),
-    },
-    // Historical daily spend to illustrate Budget Cap vs. Streak
-    {
-      id: 'exp-d1-1',
-      dateKey: d1,
-      amount: 34.0,
-      category: 'Food',
-      note: 'Groceries & coffee',
-      createdAt: new Date(now.getTime() - 26 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-d2-1',
-      dateKey: d2,
-      amount: 39.5,
-      category: 'Work',
-      note: 'Coworking day pass & lunch',
-      createdAt: new Date(now.getTime() - 50 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-d3-1',
-      dateKey: d3,
-      amount: 54.0,
-      category: 'Bills',
-      note: 'Mobile data plan & dinner',
-      createdAt: new Date(now.getTime() - 74 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-d4-1',
-      dateKey: d4,
-      amount: 48.2,
-      category: 'Food',
-      note: 'Weekend groceries',
-      createdAt: new Date(now.getTime() - 98 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-d5-1',
-      dateKey: d5,
-      amount: 29.0,
-      category: 'Transport',
-      note: 'Fuel & snacks',
-      createdAt: new Date(now.getTime() - 122 * 3600_000).toISOString(),
-    },
-    {
-      id: 'exp-d6-1',
-      dateKey: d6,
-      amount: 31.8,
-      category: 'Health',
-      note: 'Gym smoothies & supplements',
-      createdAt: new Date(now.getTime() - 146 * 3600_000).toISOString(),
-    },
-  ];
-
-  const notifications: NotificationRecord[] = [
-    {
-      id: 'notif-seed-1',
-      type: 'reminder',
-      title: 'Morning target check-in',
-      body: 'You have 4 daily goals scheduled today. Stay under $45.00 to keep your Dual-Win streak alive.',
-      triggeredAt: new Date(now.getTime() - 4.5 * 3600_000).toISOString(),
-      read: true,
-    },
-    {
-      id: 'notif-seed-2',
-      type: 'milestone',
-      title: 'Yesterday’s goals completed',
-      body: '100% of daily targets hit while spending $34.00 / $45.00. Dual-Win streak extended!',
-      triggeredAt: new Date(now.getTime() - 21 * 3600_000).toISOString(),
-      read: false,
-    },
-  ];
-
-  return {
-    profile: { ...DEFAULT_PROFILE, createdAt: now.toISOString() },
-    goals,
-    sessions,
-    expenses,
-    notifications,
-    settings: { ...DEFAULT_SETTINGS },
-    lastSyncedAt: now.toISOString(),
-  };
-}
-
 export function createEmptyState(
   currentSettings?: UserSettings,
   currentProfile?: UserProfile
 ): DaymarkStoreState {
   return {
     profile: currentProfile
-      ? { ...currentProfile }
+      ? { ...DEFAULT_PROFILE, ...currentProfile }
       : { ...DEFAULT_PROFILE, createdAt: new Date().toISOString() },
     goals: [],
     sessions: [],
     expenses: [],
     notifications: [],
-    settings: currentSettings ? { ...currentSettings } : { ...DEFAULT_SETTINGS },
+    settings: currentSettings ? { ...DEFAULT_SETTINGS, ...currentSettings } : { ...DEFAULT_SETTINGS },
     lastSyncedAt: new Date().toISOString(),
+  };
+}
+
+export function buildLocalAccountFromProfile(
+  id: string,
+  profile: UserProfile,
+  pinHash?: string
+): LocalUserAccount {
+  const now = new Date().toISOString();
+  return {
+    id,
+    username: normalizeUsername(profile.username || profile.name, 'user'),
+    name: profile.name.trim() || 'Explorer',
+    role: profile.role.trim() || 'Daily Achiever',
+    focusPillar: profile.focusPillar,
+    avatarStyle: profile.avatarStyle,
+    avatarColor: profile.avatarColor,
+    avatarDataUrl: profile.avatarDataUrl,
+    pinHash,
+    createdAt: profile.createdAt || now,
+    lastSignedInAt: now,
   };
 }
 
@@ -420,74 +106,192 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-export async function loadOfflineState(): Promise<DaymarkStoreState> {
+async function idbGet<T>(key: string): Promise<T | undefined> {
   try {
     const db = await openDatabase();
-    const record = await new Promise<DaymarkStoreState | undefined>((resolve, reject) => {
+    const record = await new Promise<T | undefined>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get(SNAPSHOT_KEY);
-      req.onsuccess = () => resolve(req.result as DaymarkStoreState | undefined);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result as T | undefined);
       req.onerror = () => reject(req.error);
     });
     db.close();
-    if (record && Array.isArray(record.goals) && record.settings) {
-      return {
-        ...record,
-        profile: { ...DEFAULT_PROFILE, ...(record.profile || {}) },
-        settings: { ...DEFAULT_SETTINGS, ...record.settings },
-      };
-    }
+    return record;
   } catch {
-    // Fallback to localStorage below
+    return undefined;
+  }
+}
+
+async function idbPut<T>(key: string, value: T): Promise<void> {
+  try {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(value, key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+  } catch {
+    // Fallback mirror in localStorage already handles persistence
+  }
+}
+
+async function idbDelete(key: string): Promise<void> {
+  try {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+  } catch {
+    // Ignore
+  }
+}
+
+function hydrateState(record: DaymarkStoreState): DaymarkStoreState {
+  return {
+    ...record,
+    profile: { ...DEFAULT_PROFILE, ...(record.profile || {}) },
+    settings: { ...DEFAULT_SETTINGS, ...(record.settings || {}) },
+    goals: Array.isArray(record.goals) ? record.goals : [],
+    sessions: Array.isArray(record.sessions) ? record.sessions : [],
+    expenses: Array.isArray(record.expenses) ? record.expenses : [],
+    notifications: Array.isArray(record.notifications) ? record.notifications : [],
+  };
+}
+
+export async function loadLocalAuthRegistry(): Promise<LocalAuthRegistry> {
+  const fromIdb = await idbGet<LocalAuthRegistry>(REGISTRY_KEY);
+  if (fromIdb && Array.isArray(fromIdb.accounts)) {
+    return {
+      accounts: fromIdb.accounts,
+      activeAccountId: fromIdb.activeAccountId ?? null,
+    };
   }
 
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(REGISTRY_LS_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as DaymarkStoreState;
-      if (parsed && Array.isArray(parsed.goals) && parsed.settings) {
+      const parsed = JSON.parse(raw) as LocalAuthRegistry;
+      if (parsed && Array.isArray(parsed.accounts)) {
         return {
-          ...parsed,
-          profile: { ...DEFAULT_PROFILE, ...(parsed.profile || {}) },
-          settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+          accounts: parsed.accounts,
+          activeAccountId: parsed.activeAccountId ?? null,
         };
       }
     }
   } catch {
-    // Seed fresh data below
+    // Continue to legacy migration check
   }
 
-  const seeded = createSeedState();
-  await saveOfflineState(seeded);
-  return seeded;
+  // Seamless migration if a single legacy user already completed onboarding before multi-user support
+  const legacy = await loadLegacyOfflineState();
+  if (legacy && legacy.profile.onboardingCompleted) {
+    const migratedId = `local-${Date.now()}`;
+    const username = normalizeUsername(legacy.profile.username || legacy.profile.name, 'user');
+    const migratedProfile: UserProfile = {
+      ...DEFAULT_PROFILE,
+      ...legacy.profile,
+      username,
+    };
+    const migratedState: DaymarkStoreState = {
+      ...legacy,
+      profile: migratedProfile,
+    };
+    const account = buildLocalAccountFromProfile(migratedId, migratedProfile);
+    const registry: LocalAuthRegistry = {
+      accounts: [account],
+      activeAccountId: migratedId,
+    };
+    await saveUserState(migratedId, migratedState);
+    await saveLocalAuthRegistry(registry);
+    return registry;
+  }
+
+  return { accounts: [], activeAccountId: null };
 }
 
-export async function saveOfflineState(state: DaymarkStoreState): Promise<void> {
+export async function saveLocalAuthRegistry(registry: LocalAuthRegistry): Promise<void> {
+  try {
+    localStorage.setItem(REGISTRY_LS_KEY, JSON.stringify(registry));
+  } catch {
+    // Ignore storage quota issues
+  }
+  await idbPut(REGISTRY_KEY, registry);
+}
+
+async function loadLegacyOfflineState(): Promise<DaymarkStoreState | null> {
+  const fromIdb = await idbGet<DaymarkStoreState>(LEGACY_SNAPSHOT_KEY);
+  if (fromIdb && Array.isArray(fromIdb.goals) && fromIdb.settings) {
+    return hydrateState(fromIdb);
+  }
+  try {
+    const raw = localStorage.getItem(LEGACY_LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as DaymarkStoreState;
+      if (parsed && Array.isArray(parsed.goals) && parsed.settings) {
+        return hydrateState(parsed);
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return null;
+}
+
+export async function loadUserState(accountId: string): Promise<DaymarkStoreState> {
+  const fromIdb = await idbGet<DaymarkStoreState>(userSnapshotKey(accountId));
+  if (fromIdb && Array.isArray(fromIdb.goals) && fromIdb.settings) {
+    return hydrateState(fromIdb);
+  }
+
+  try {
+    const raw = localStorage.getItem(userLsKey(accountId));
+    if (raw) {
+      const parsed = JSON.parse(raw) as DaymarkStoreState;
+      if (parsed && Array.isArray(parsed.goals) && parsed.settings) {
+        return hydrateState(parsed);
+      }
+    }
+  } catch {
+    // Initialize clean state below
+  }
+
+  return createEmptyState();
+}
+
+export async function saveUserState(
+  accountId: string,
+  state: DaymarkStoreState
+): Promise<void> {
   const stamped: DaymarkStoreState = {
     ...state,
     lastSyncedAt: new Date().toISOString(),
   };
 
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(stamped));
+    localStorage.setItem(userLsKey(accountId), JSON.stringify(stamped));
   } catch {
-    // Ignore storage quota issues in private browsing
+    // Ignore storage quota issues
   }
 
+  await idbPut(userSnapshotKey(accountId), stamped);
+}
+
+export async function deleteUserState(accountId: string): Promise<void> {
   try {
-    const db = await openDatabase();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.put(stamped, SNAPSHOT_KEY);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-    db.close();
+    localStorage.removeItem(userLsKey(accountId));
   } catch {
-    // localStorage mirror already persisted
+    // Ignore
   }
+  await idbDelete(userSnapshotKey(accountId));
 }
 
 export function validateImportedSnapshot(data: unknown): DaymarkStoreState | null {

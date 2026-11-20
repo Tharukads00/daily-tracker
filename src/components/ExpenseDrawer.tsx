@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Drawer, Input, InputNumber, Select } from 'antd';
+import {
+  Button,
+  Drawer,
+  IconButton,
+  InputAdornment,
+  TextField,
+} from '@mui/material';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import type { ExpenseCategory, ExpenseEntry } from '../types/daymark';
 import { formatCurrency } from '../utils/dateUtils';
+import { ExpenseCategoryIcon } from './MaterialIcons';
 
 interface ExpenseDrawerProps {
   open: boolean;
@@ -38,7 +46,7 @@ export const ExpenseDrawer: React.FC<ExpenseDrawerProps> = ({
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
-  const [amount, setAmount] = useState<number | null>(null);
+  const [amountInput, setAmountInput] = useState<string>('');
   const [category, setCategory] = useState<ExpenseCategory>('Food');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -53,38 +61,39 @@ export const ExpenseDrawer: React.FC<ExpenseDrawerProps> = ({
     if (!open) return;
     setError('');
     if (editingExpense) {
-      setAmount(editingExpense.amount);
+      setAmountInput(String(editingExpense.amount));
       setCategory(editingExpense.category);
       setNote(editingExpense.note);
     } else {
-      setAmount(null);
+      setAmountInput('');
       setCategory('Food');
       setNote('');
     }
   }, [open, editingExpense]);
 
-  const numericAmount = amount && amount > 0 ? amount : 0;
+  const parsedAmount = parseFloat(amountInput);
+  const numericAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
   const projectedTotal =
     todaySpent - (editingExpense ? editingExpense.amount : 0) + numericAmount;
   const projectedRemaining = dailyBudgetCap - projectedTotal;
 
   const handleSubmit = () => {
-    if (!amount || amount <= 0) {
-      setError('Enter an expense amount greater than zero.');
+    if (!numericAmount || numericAmount <= 0) {
+      setError('Enter an amount greater than zero.');
       return;
     }
 
     const entry: ExpenseEntry = editingExpense
       ? {
           ...editingExpense,
-          amount: Number(amount.toFixed(2)),
+          amount: Number(numericAmount.toFixed(2)),
           category,
           note: note.trim() || `${category} expense`,
         }
       : {
           id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           dateKey,
-          amount: Number(amount.toFixed(2)),
+          amount: Number(numericAmount.toFixed(2)),
           category,
           note: note.trim() || `${category} expense`,
           createdAt: new Date().toISOString(),
@@ -98,113 +107,164 @@ export const ExpenseDrawer: React.FC<ExpenseDrawerProps> = ({
     <Drawer
       open={open}
       onClose={onClose}
-      placement={isMobile ? 'bottom' : 'right'}
-      height={isMobile ? '78vh' : undefined}
-      width={isMobile ? undefined : 420}
-      title={
-        <span className="font-display text-base font-semibold">
-          {editingExpense ? 'Edit Expense' : 'Log Daily Expense'}
-        </span>
-      }
-      footer={
-        <div className="flex items-center gap-3 py-1">
-          <Button onClick={onClose} className="min-h-[44px] flex-1">
-            Cancel
-          </Button>
-          <Button type="primary" onClick={handleSubmit} className="min-h-[44px] flex-[2]">
-            {editingExpense ? 'Update Expense' : 'Save Expense'}
-          </Button>
-        </div>
-      }
+      anchor={isMobile ? 'bottom' : 'right'}
+      slotProps={{
+        paper: {
+          sx: isMobile
+            ? {
+                borderTopLeftRadius: 28,
+                borderTopRightRadius: 28,
+                maxHeight: '86vh',
+              }
+            : {
+                width: 420,
+                borderTopLeftRadius: 24,
+                borderBottomLeftRadius: 24,
+              },
+        },
+      }}
     >
-      <div className="space-y-5">
-        {isMobile && (
-          <div className="w-10 h-1 rounded-full bg-[#CBD5E1] dark:bg-[#334155] mx-auto -mt-2 mb-1" />
-        )}
-
-        <div>
-          <label className="block text-sm font-medium mb-1.5">Amount ({currencySymbol})</label>
-          <InputNumber
-            size="large"
-            min={0.01}
-            max={1000000}
-            precision={2}
-            prefix={currencySymbol}
-            placeholder="0.00"
-            value={amount}
-            onChange={(val) => {
-              setAmount(val);
-              if (error) setError('');
-            }}
-            className="w-full font-mono"
-            autoFocus
-          />
-          {error && <p className="mt-1.5 text-xs text-[#DC2626] dark:text-[#F87171]">{error}</p>}
-
-          <div className="flex items-center gap-2 mt-2.5">
-            {QUICK_AMOUNTS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => {
-                  setAmount(preset);
-                  setError('');
-                }}
-                className="min-h-[40px] flex-1 rounded-lg border border-[#E5E7EB] dark:border-[#222C3E] text-xs font-mono tabular-nums font-medium text-[#111827] dark:text-[#F3F6FA] hover:border-[#1677FF] transition-colors"
-              >
-                +{currencySymbol}
-                {preset}
-              </button>
-            ))}
+      <div className="flex flex-col h-full max-h-[86vh] md:max-h-screen">
+        {/* Header */}
+        <div className="px-5 pt-3 pb-3 border-b border-[#DDE3EE] dark:border-[#2B313E]">
+          {isMobile && (
+            <div className="w-10 h-1 rounded-full bg-[#C4CBD8] dark:bg-[#3F4756] mx-auto mb-3" />
+          )}
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+              {editingExpense ? 'Edit Expense' : 'Log Daily Expense'}
+            </h2>
+            <IconButton onClick={onClose} aria-label="Close drawer" size="small">
+              <CloseRoundedIcon />
+            </IconButton>
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1.5">Category</label>
-          <Select
-            size="large"
-            value={category}
-            onChange={(val) => setCategory(val)}
-            className="w-full"
-            options={EXPENSE_CATEGORIES.map((cat) => ({ label: cat, value: cat }))}
-          />
-        </div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+          <div className="space-y-2.5">
+            <TextField
+              fullWidth
+              type="number"
+              label="Amount"
+              placeholder="0.00"
+              value={amountInput}
+              error={Boolean(error)}
+              helperText={error || undefined}
+              onChange={(e) => {
+                setAmountInput(e.target.value);
+                if (error) setError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSubmit();
+              }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <span className="font-mono font-semibold">{currencySymbol}</span>
+                    </InputAdornment>
+                  ),
+                },
+                htmlInput: { min: 0.01, step: 'any' },
+              }}
+            />
 
-        <div>
-          <label className="block text-sm font-medium mb-1.5">Note</label>
-          <Input
-            size="large"
+            <div className="grid grid-cols-4 gap-2">
+              {QUICK_AMOUNTS.map((preset) => (
+                <Button
+                  key={preset}
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setAmountInput(String(preset));
+                    setError('');
+                  }}
+                  sx={{ fontFamily: '"JetBrains Mono", monospace', minHeight: 38 }}
+                >
+                  +{currencySymbol}
+                  {preset}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Interactive Icon Category Grid */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-[#515864] dark:text-[#9EA6B6]">
+              Category
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {EXPENSE_CATEGORIES.map((cat) => {
+                const selected = category === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    className={`p-2.5 rounded-2xl border flex flex-col items-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer ${
+                      selected
+                        ? 'border-[#00639B] dark:border-[#8ACEFF] bg-[#CEE5FF]/60 dark:bg-[#004B73]/60'
+                        : 'border-[#DDE3EE] dark:border-[#2B313E] bg-[#F9FBFE] dark:bg-[#151820]'
+                    }`}
+                  >
+                    <ExpenseCategoryIcon category={cat} />
+                    <span className="text-xs font-semibold text-[#191C20] dark:text-[#E3E5EC]">
+                      {cat}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <TextField
+            fullWidth
+            label="Note (optional)"
             placeholder="e.g., Lunch, bus fare, groceries"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            onPressEnter={handleSubmit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
           />
+
+          {/* Budget Impact Summary */}
+          <div className="p-4 rounded-2xl bg-[#F0F4FA] dark:bg-[#1E222B] space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-[#515864] dark:text-[#9EA6B6]">
+              <span>Projected daily spend</span>
+              <span className="font-mono tabular-nums font-semibold text-[#191C20] dark:text-[#E3E5EC]">
+                {formatCurrency(projectedTotal, currencySymbol)} /{' '}
+                {formatCurrency(dailyBudgetCap, currencySymbol)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#515864] dark:text-[#9EA6B6]">Budget impact</span>
+              <span
+                className={`font-mono tabular-nums font-semibold ${
+                  projectedRemaining < 0
+                    ? 'text-[#BA1A1A] dark:text-[#FFB4AB]'
+                    : projectedTotal / Math.max(1, dailyBudgetCap) >= 0.8
+                      ? 'text-[#A15C00] dark:text-[#FFB951]'
+                      : 'text-[#0E7A56] dark:text-[#6DDBAC]'
+                }`}
+              >
+                {projectedRemaining < 0
+                  ? `${formatCurrency(Math.abs(projectedRemaining), currencySymbol)} over cap`
+                  : `${formatCurrency(projectedRemaining, currencySymbol)} left`}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl border border-[#E5E7EB] dark:border-[#222C3E] bg-[#F6F7F9] dark:bg-[#0B0F17] space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-[#525B6B] dark:text-[#94A3B8]">
-            <span>Projected daily spend</span>
-            <span className="font-mono tabular-nums font-medium text-[#111827] dark:text-[#F3F6FA]">
-              {formatCurrency(projectedTotal, currencySymbol)} /{' '}
-              {formatCurrency(dailyBudgetCap, currencySymbol)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[#525B6B] dark:text-[#94A3B8]">Budget impact</span>
-            <span
-              className={`font-mono tabular-nums font-semibold ${
-                projectedRemaining < 0
-                  ? 'text-[#DC2626] dark:text-[#F87171]'
-                  : projectedTotal / Math.max(1, dailyBudgetCap) >= 0.8
-                    ? 'text-[#D97706] dark:text-[#FBBF24]'
-                    : 'text-[#10B981]'
-              }`}
-            >
-              {projectedRemaining < 0
-                ? `${formatCurrency(Math.abs(projectedRemaining), currencySymbol)} over cap`
-                : `${formatCurrency(projectedRemaining, currencySymbol)} remaining`}
-            </span>
-          </div>
+        {/* Footer */}
+        <div className="px-5 py-3.5 pb-safe border-t border-[#DDE3EE] dark:border-[#2B313E] flex items-center gap-3">
+          <Button variant="outlined" onClick={onClose} sx={{ flex: 1 }}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSubmit} sx={{ flex: 2 }}>
+            {editingExpense ? 'Update Expense' : 'Save Expense'}
+          </Button>
         </div>
       </div>
     </Drawer>

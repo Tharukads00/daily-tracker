@@ -1,6 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Drawer, Input, InputNumber, Segmented, Select } from 'antd';
-import { Plus, Trash2 } from 'lucide-react';
+import {
+  Button,
+  Drawer,
+  FormControl,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import PlusOneRoundedIcon from '@mui/icons-material/PlusOneRounded';
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
+import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
 import type {
   DailyGoal,
   GoalCategory,
@@ -18,13 +35,6 @@ interface GoalDrawerProps {
 }
 
 const CATEGORIES: GoalCategory[] = ['Work', 'Study', 'Health', 'Personal', 'Finance'];
-
-const MODE_OPTIONS = [
-  { label: 'Slider %', value: 'slider' },
-  { label: 'Counter', value: 'counter' },
-  { label: 'Checklist', value: 'checklist' },
-  { label: 'Timer', value: 'timer' },
-];
 
 export const GoalDrawer: React.FC<GoalDrawerProps> = ({
   open,
@@ -106,7 +116,7 @@ export const GoalDrawer: React.FC<GoalDrawerProps> = ({
       return;
     }
     if (trackingMode === 'checklist' && subtasks.length === 0) {
-      setError('Add at least one weighted sub-task for a checklist goal.');
+      setError('Add at least one weighted sub-task.');
       return;
     }
 
@@ -148,194 +158,242 @@ export const GoalDrawer: React.FC<GoalDrawerProps> = ({
     <Drawer
       open={open}
       onClose={onClose}
-      placement={isMobile ? 'bottom' : 'right'}
-      height={isMobile ? '86vh' : undefined}
-      width={isMobile ? undefined : 440}
-      title={
-        <span className="font-display text-base font-semibold">
-          {editingGoal ? 'Edit Daily Target' : 'New Daily Target'}
-        </span>
-      }
-      footer={
-        <div className="flex items-center gap-3 py-1">
-          <Button onClick={onClose} className="min-h-[44px] flex-1">
-            Cancel
-          </Button>
-          <Button type="primary" onClick={handleSubmit} className="min-h-[44px] flex-[2]">
-            {editingGoal ? 'Save Changes' : 'Create Goal'}
-          </Button>
-        </div>
-      }
+      anchor={isMobile ? 'bottom' : 'right'}
+      slotProps={{
+        paper: {
+          sx: isMobile
+            ? {
+                borderTopLeftRadius: 28,
+                borderTopRightRadius: 28,
+                maxHeight: '88vh',
+              }
+            : {
+                width: 440,
+                borderTopLeftRadius: 24,
+                borderBottomLeftRadius: 24,
+              },
+        },
+      }}
     >
-      <div className="space-y-5">
-        {isMobile && (
-          <div className="w-10 h-1 rounded-full bg-[#CBD5E1] dark:bg-[#334155] mx-auto -mt-2 mb-1" />
-        )}
+      <div className="flex flex-col h-full max-h-[88vh] md:max-h-screen">
+        {/* Header */}
+        <div className="px-5 pt-3 pb-3 border-b border-[#DDE3EE] dark:border-[#2B313E]">
+          {isMobile && (
+            <div className="w-10 h-1 rounded-full bg-[#C4CBD8] dark:bg-[#3F4756] mx-auto mb-3" />
+          )}
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold text-[#191C20] dark:text-[#E3E5EC]">
+              {editingGoal ? 'Edit Daily Target' : 'New Daily Target'}
+            </h2>
+            <IconButton onClick={onClose} aria-label="Close drawer" size="small">
+              <CloseRoundedIcon />
+            </IconButton>
+          </div>
+        </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1.5 text-[#111827] dark:text-[#F3F6FA]">
-            Goal title
-          </label>
-          <Input
-            size="large"
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+          <TextField
+            fullWidth
+            label="Goal title"
             placeholder="e.g., Finish mobile offline module"
             value={title}
+            error={Boolean(error && !title.trim())}
+            helperText={error && !title.trim() ? error : undefined}
             onChange={(e) => {
               setTitle(e.target.value);
               if (error) setError('');
             }}
-            onPressEnter={handleSubmit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
           />
-          {error && <p className="mt-1.5 text-xs text-[#DC2626] dark:text-[#F87171]">{error}</p>}
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium mb-1.5 text-[#111827] dark:text-[#F3F6FA]">
-              Category
-            </label>
-            <Select
-              size="large"
-              value={category}
-              onChange={(val) => setCategory(val)}
-              className="w-full"
-              options={CATEGORIES.map((c) => ({ label: c, value: c }))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5 text-[#111827] dark:text-[#F3F6FA]">
-              Reminder time (optional)
-            </label>
-            <input
+          <div className="grid grid-cols-2 gap-3">
+            <FormControl fullWidth>
+              <InputLabel id="goal-category-label">Category</InputLabel>
+              <Select
+                labelId="goal-category-label"
+                label="Category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value as GoalCategory)}
+              >
+                {CATEGORIES.map((c) => (
+                  <MenuItem key={c} value={c}>
+                    {c}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              fullWidth
+              label="Reminder"
               type="time"
               value={reminderTime}
               onChange={(e) => setReminderTime(e.target.value)}
-              className="w-full h-[40px] px-3 rounded-[10px] border border-[#D9D9D9] dark:border-[#2C374B] bg-white dark:bg-[#131A26] text-sm text-[#111827] dark:text-[#F3F6FA] tabular-nums focus:outline-none focus:border-[#1677FF]"
+              slotProps={{ inputLabel: { shrink: true } }}
             />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1.5 text-[#111827] dark:text-[#F3F6FA]">
-            Work measurement mode
-          </label>
-          <Segmented
-            block
-            size="large"
-            value={trackingMode}
-            onChange={(val) => setTrackingMode(val as GoalTrackingMode)}
-            options={MODE_OPTIONS}
-          />
-          <p className="mt-1.5 text-xs text-[#525B6B] dark:text-[#94A3B8]">
-            {trackingMode === 'slider' && 'Drag a 0–100% slider as you make progress.'}
-            {trackingMode === 'counter' && 'Track concrete numeric targets (pages, reps, tasks).'}
-            {trackingMode === 'checklist' && 'Break work into sub-tasks weighted by effort.'}
-            {trackingMode === 'timer' && 'Measure progress directly via Focus & Pomodoro minutes.'}
-          </p>
-        </div>
-
-        {trackingMode === 'counter' && (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Target count</label>
-              <InputNumber
-                size="large"
-                min={1}
-                max={10000}
-                value={targetValue}
-                onChange={(val) => setTargetValue(Number(val) || 1)}
-                className="w-full"
-              />
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-[#515864] dark:text-[#9EA6B6]">
+              Tracking method
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Unit label</label>
-              <Input
-                size="large"
+            <ToggleButtonGroup
+              exclusive
+              fullWidth
+              value={trackingMode}
+              onChange={(_, val) => {
+                if (val) setTrackingMode(val as GoalTrackingMode);
+              }}
+            >
+              <ToggleButton value="slider" sx={{ px: 1 }}>
+                <span className="inline-flex items-center gap-1 text-xs">
+                  <TuneRoundedIcon sx={{ fontSize: 16 }} />
+                  Slider
+                </span>
+              </ToggleButton>
+              <ToggleButton value="counter" sx={{ px: 1 }}>
+                <span className="inline-flex items-center gap-1 text-xs">
+                  <PlusOneRoundedIcon sx={{ fontSize: 16 }} />
+                  Count
+                </span>
+              </ToggleButton>
+              <ToggleButton value="checklist" sx={{ px: 1 }}>
+                <span className="inline-flex items-center gap-1 text-xs">
+                  <ChecklistRoundedIcon sx={{ fontSize: 16 }} />
+                  Steps
+                </span>
+              </ToggleButton>
+              <ToggleButton value="timer" sx={{ px: 1 }}>
+                <span className="inline-flex items-center gap-1 text-xs">
+                  <TimerRoundedIcon sx={{ fontSize: 16 }} />
+                  Timer
+                </span>
+              </ToggleButton>
+            </ToggleButtonGroup>
+            <p className="text-xs text-[#515864] dark:text-[#9EA6B6]">
+              {trackingMode === 'slider' && 'Slide 0–100% as you progress.'}
+              {trackingMode === 'counter' && 'Count numeric units like pages, tasks, or sets.'}
+              {trackingMode === 'checklist' && 'Complete weighted sub-tasks toward 100%.'}
+              {trackingMode === 'timer' && 'Track progress automatically via Focus sessions.'}
+            </p>
+          </div>
+
+          {trackingMode === 'counter' && (
+            <div className="grid grid-cols-2 gap-3">
+              <TextField
+                fullWidth
+                type="number"
+                label="Target count"
+                value={targetValue}
+                onChange={(e) => setTargetValue(Math.max(1, Number(e.target.value) || 1))}
+                slotProps={{ htmlInput: { min: 1, max: 10000 } }}
+              />
+              <TextField
+                fullWidth
+                label="Unit label"
                 placeholder="pages, km, tasks"
                 value={unitLabel}
                 onChange={(e) => setUnitLabel(e.target.value)}
               />
             </div>
-          </div>
-        )}
+          )}
 
-        {trackingMode === 'timer' && (
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Target focus duration (minutes)</label>
-            <InputNumber
-              size="large"
-              min={5}
-              max={600}
-              step={5}
+          {trackingMode === 'timer' && (
+            <TextField
+              fullWidth
+              type="number"
+              label="Target focus minutes"
               value={targetMinutes}
-              onChange={(val) => setTargetMinutes(Number(val) || 25)}
-              className="w-full"
-              addonAfter="min"
+              onChange={(e) => setTargetMinutes(Math.max(5, Number(e.target.value) || 25))}
+              slotProps={{ htmlInput: { min: 5, max: 600, step: 5 } }}
             />
-          </div>
-        )}
+          )}
 
-        {trackingMode === 'checklist' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Weighted sub-tasks</label>
-              <span className="text-xs text-[#525B6B] dark:text-[#94A3B8] tabular-nums">
-                Total weight: {subtasks.reduce((sum, s) => sum + s.weight, 0)}
-              </span>
-            </div>
+          {trackingMode === 'checklist' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-[#515864] dark:text-[#9EA6B6]">
+                <span className="font-semibold">Weighted sub-tasks</span>
+                <span className="font-mono tabular-nums">
+                  Total weight: {subtasks.reduce((sum, s) => sum + s.weight, 0)}
+                </span>
+              </div>
 
-            <div className="space-y-2">
-              {subtasks.map((st) => (
-                <div
-                  key={st.id}
-                  className="flex items-center gap-2 p-2.5 rounded-xl border border-[#E5E7EB] dark:border-[#222C3E] bg-[#F6F7F9] dark:bg-[#0B0F17]"
-                >
-                  <span className="flex-1 text-sm truncate text-[#111827] dark:text-[#F3F6FA]">
-                    {st.title}
-                  </span>
-                  <span className="text-xs font-mono tabular-nums text-[#525B6B] dark:text-[#94A3B8]">
-                    {st.weight}x
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${st.title}`}
-                    onClick={() => setSubtasks((prev) => prev.filter((item) => item.id !== st.id))}
-                    className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#525B6B] hover:text-[#DC2626] transition-colors"
+              {error && subtasks.length === 0 && (
+                <p className="text-xs text-[#BA1A1A] dark:text-[#FFB4AB]">{error}</p>
+              )}
+
+              <div className="space-y-2">
+                {subtasks.map((st) => (
+                  <div
+                    key={st.id}
+                    className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-[#F0F4FA] dark:bg-[#1E222B]"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <span className="flex-1 text-sm truncate text-[#191C20] dark:text-[#E3E5EC]">
+                      {st.title}
+                    </span>
+                    <span className="text-xs font-mono tabular-nums text-[#515864] dark:text-[#9EA6B6]">
+                      {st.weight}x
+                    </span>
+                    <IconButton
+                      size="small"
+                      aria-label={`Remove ${st.title}`}
+                      onClick={() => setSubtasks((prev) => prev.filter((item) => item.id !== st.id))}
+                    >
+                      <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </div>
+                ))}
+              </div>
 
-            <div className="flex items-center gap-2">
-              <Input
-                size="large"
-                placeholder="Add sub-task..."
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                onPressEnter={handleAddSubtask}
-                className="flex-1"
-              />
-              <InputNumber
-                size="large"
-                min={1}
-                max={10}
-                value={newSubtaskWeight}
-                onChange={(val) => setNewSubtaskWeight(Number(val) || 1)}
-                className="w-20"
-                prefix="w:"
-              />
-              <Button
-                size="large"
-                icon={<Plus className="w-4 h-4" />}
-                onClick={handleAddSubtask}
-                aria-label="Add sub-task"
-                className="min-w-[44px]"
-              />
+              <div className="flex items-center gap-2">
+                <TextField
+                  size="small"
+                  placeholder="Add sub-task..."
+                  value={newSubtaskTitle}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddSubtask();
+                  }}
+                  sx={{ flex: 1 }}
+                />
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Wt"
+                  value={newSubtaskWeight}
+                  onChange={(e) => setNewSubtaskWeight(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                  sx={{ width: 68 }}
+                  slotProps={{ htmlInput: { min: 1, max: 10 } }}
+                />
+                <IconButton
+                  color="primary"
+                  onClick={handleAddSubtask}
+                  aria-label="Add sub-task"
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                  }}
+                >
+                  <AddRoundedIcon />
+                </IconButton>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3.5 pb-safe border-t border-[#DDE3EE] dark:border-[#2B313E] flex items-center gap-3">
+          <Button variant="outlined" onClick={onClose} sx={{ flex: 1 }}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSubmit} sx={{ flex: 2 }}>
+            {editingGoal ? 'Save Changes' : 'Create Goal'}
+          </Button>
+        </div>
       </div>
     </Drawer>
   );
