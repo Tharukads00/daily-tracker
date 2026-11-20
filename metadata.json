@@ -1,0 +1,6 @@
+{
+  "name": "Daymark",
+  "description": "Offline-first personal daily target goals, focus timer, and daily expense tracker with dark mode and reminder notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

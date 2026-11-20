@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Daymark",
+    "slug": "daymark-android",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "com.daymark.tracker",
+      "adaptiveIcon": {
+        "backgroundColor": "#1677FF"
+      },
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#1677FF"
+        }
+      ]
+    ]
+  }
+}
